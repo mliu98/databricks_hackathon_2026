@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAnalyticsQuery } from '@databricks/appkit-ui/react';
 import { sql } from '@databricks/appkit-ui/js';
 import {
@@ -12,9 +12,22 @@ import {
   CardTitle,
   Skeleton,
 } from '@databricks/appkit-ui/react';
-import { Building2, ExternalLink, Mail, Phone, ShieldQuestion, Stethoscope, Users, Wrench, X } from 'lucide-react';
+import {
+  Building2,
+  ChevronLeft,
+  ExternalLink,
+  Mail,
+  Phone,
+  ShieldQuestion,
+  Sparkles,
+  Stethoscope,
+  Users,
+  Wrench,
+  X,
+} from 'lucide-react';
 import { ConfidenceBadge, GapPill } from './StatBits';
 import { SaveScenarioDialog } from './SaveScenarioDialog';
+import { StateGenieChat } from './StateGenieChat';
 import { rankInterventions, type DistrictGapRow, type InterventionKind } from '../lib/interventions';
 import { formatFixed, formatNumber, toBoolean, toFiniteNumber } from '../lib/numbers';
 import type { ScenarioSnapshot } from '../lib/scenarios';
@@ -54,22 +67,47 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
   const partners = useAnalyticsQuery('partner_candidates', partnerParams);
   const rows = (districts.data ?? []) as DistrictGapRow[];
   const actions = rankInterventions(rows, capability);
+  const [showGenie, setShowGenie] = useState(false);
 
   return (
     <Card className="z-20 rounded-[24px] border-white/10 bg-[#171719]/95 shadow-2xl backdrop-blur-xl lg:absolute lg:right-5 lg:top-20 lg:w-[390px]">
       <CardHeader className="space-y-2 p-4 pb-2">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">{state} action brief</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Top district interventions from current Unity Catalog evidence
-            </p>
+          <div className="flex items-start gap-1.5">
+            {showGenie && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => setShowGenie(false)}
+                aria-label="Back to action brief"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <div>
+              <CardTitle className="text-base">
+                {showGenie ? `Ask Genie · ${state}` : `${state} action brief`}
+              </CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {showGenie
+                  ? 'Natural-language questions answered from the Unity Catalog data'
+                  : 'Top district interventions from current Unity Catalog evidence'}
+              </p>
+            </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close state action brief">
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {!showGenie && (
+              <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setShowGenie(true)}>
+                <Sparkles className="h-3.5 w-3.5" /> Ask Genie
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close state action brief">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        {stateRow && (
+        {!showGenie && stateRow && (
           <div className="space-y-2">
             <div className="grid grid-cols-3 gap-2">
               <Metric
@@ -104,114 +142,124 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
         )}
       </CardHeader>
       <CardContent className="max-h-[620px] space-y-4 overflow-y-auto p-4 pt-2">
-        {districts.loading && <Skeleton className="h-72 w-full" />}
-        {districts.error && (
-          <Alert variant="destructive">
-            <AlertDescription>Could not load district recommendations: {districts.error}</AlertDescription>
-          </Alert>
-        )}
-        {partners.error && (
-          <Alert variant="destructive">
-            <AlertDescription>Could not load potential partner contacts: {partners.error}</AlertDescription>
-          </Alert>
-        )}
-        {!districts.loading && !districts.error && actions.length === 0 && (
-          <p className="text-sm text-muted-foreground">No district risk evidence is available for this state.</p>
-        )}
-
-        {actions.map((action, index) => {
-          const row = rows.find((candidate) => candidate.district === action.district);
-          if (!row) return null;
-          const Icon = ACTION_ICONS[action.kind];
-          const districtPartners = ((partners.data ?? []) as Record<string, unknown>[])
-            .filter((partner) => String(partner.district).toLowerCase() === action.district.toLowerCase())
-            .slice(0, 2);
-          const snapshot: ScenarioSnapshot = {
-            n_facilities: toFiniteNumber(row.n_facilities),
-            trust_weighted: toFiniteNumber(row.trust_weighted),
-            copd_risk_score: toFiniteNumber(row.copd_risk_score),
-            gap_score: toFiniteNumber(row.gap_score),
-            data_confidence: row.data_confidence,
-            metric: capability,
-            recommended_action: action.title,
-            recommendation_kind: action.kind,
-            methodology_version: 'district-actions-v1',
-          };
-
-          return (
-            <section key={action.district} className="space-y-2 rounded-lg border p-3">
-              <div className="flex items-start gap-2">
-                <span className="mt-0.5 rounded-md bg-primary/10 p-1.5 text-primary">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Priority {index + 1}
-                    </span>
-                    <ConfidenceBadge level={action.confidence} />
-                  </div>
-                  <h4 className="mt-1 text-sm font-semibold text-foreground">{action.title}</h4>
-                </div>
-              </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">{action.rationale}</p>
-              <div className="flex flex-wrap gap-1.5 text-xs">
-                <Badge variant="outline">risk {formatFixed(row.copd_risk_score)}/100</Badge>
-                <Badge variant="outline">{formatNumber(row.n_facilities)} matching facilities</Badge>
-                <Badge variant="outline">gap {formatFixed(row.gap_score)}</Badge>
-              </div>
-              <GapDrivers row={row} />
-
-              {districtPartners.length > 0 && (
-                <div className="space-y-1.5 border-t pt-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Potential partners
-                  </div>
-                  {districtPartners.map((partner) => (
-                    <Partner key={String(partner.facility_id)} partner={partner} />
-                  ))}
-                </div>
-              )}
-
-              <SaveScenarioDialog
-                capability={capability}
-                state={state}
-                district={action.district}
-                snapshot={snapshot}
-                initialName={action.title}
-                initialNotes={`${action.rationale}\n\nEvidence confidence: ${action.confidence}. Potential partners are unverified candidates from public catalog contact fields.`}
-                triggerLabel="Add to scenario"
-                triggerVariant="outline"
-              />
-            </section>
-          );
-        })}
-
-        <details className="rounded-md border px-3 py-2 text-xs">
-          <summary className="cursor-pointer font-medium text-foreground">How gaps and actions are calculated</summary>
-          <div className="mt-2 space-y-2 text-muted-foreground">
-            <p>
-              <strong className="text-foreground">Risk:</strong> 60% solid-fuel exposure plus 40% average adult tobacco
-              use from NFHS-5.
-            </p>
-            <p>
-              <strong className="text-foreground">Supply:</strong> trust-weighted catalog records matching the selected
-              capability.
-            </p>
-            <p>
-              <strong className="text-foreground">Gap:</strong> risk × remaining scarcity, where three trust-weighted
-              facilities represents the current district supply target.
-            </p>
-            <p>
-              <strong className="text-foreground">Confidence:</strong> broader catalog record volume, web-evidence
-              trust, and complete NFHS inputs. Low confidence always triggers verification first.
-            </p>
-            <p>
-              Facility age, stale pages, and missing named staff are audit signals only. Partners are public-contact
-              candidates, not verified NGOs or committed collaborators.
-            </p>
+        {showGenie ? (
+          <div className="h-[440px]">
+            <StateGenieChat state={state} />
           </div>
-        </details>
+        ) : (
+          <>
+            {districts.loading && <Skeleton className="h-72 w-full" />}
+            {districts.error && (
+              <Alert variant="destructive">
+                <AlertDescription>Could not load district recommendations: {districts.error}</AlertDescription>
+              </Alert>
+            )}
+            {partners.error && (
+              <Alert variant="destructive">
+                <AlertDescription>Could not load potential partner contacts: {partners.error}</AlertDescription>
+              </Alert>
+            )}
+            {!districts.loading && !districts.error && actions.length === 0 && (
+              <p className="text-sm text-muted-foreground">No district risk evidence is available for this state.</p>
+            )}
+
+            {actions.map((action, index) => {
+              const row = rows.find((candidate) => candidate.district === action.district);
+              if (!row) return null;
+              const Icon = ACTION_ICONS[action.kind];
+              const districtPartners = ((partners.data ?? []) as Record<string, unknown>[])
+                .filter((partner) => String(partner.district).toLowerCase() === action.district.toLowerCase())
+                .slice(0, 2);
+              const snapshot: ScenarioSnapshot = {
+                n_facilities: toFiniteNumber(row.n_facilities),
+                trust_weighted: toFiniteNumber(row.trust_weighted),
+                copd_risk_score: toFiniteNumber(row.copd_risk_score),
+                gap_score: toFiniteNumber(row.gap_score),
+                data_confidence: row.data_confidence,
+                metric: capability,
+                recommended_action: action.title,
+                recommendation_kind: action.kind,
+                methodology_version: 'district-actions-v1',
+              };
+
+              return (
+                <section key={action.district} className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 rounded-md bg-primary/10 p-1.5 text-primary">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Priority {index + 1}
+                        </span>
+                        <ConfidenceBadge level={action.confidence} />
+                      </div>
+                      <h4 className="mt-1 text-sm font-semibold text-foreground">{action.title}</h4>
+                    </div>
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{action.rationale}</p>
+                  <div className="flex flex-wrap gap-1.5 text-xs">
+                    <Badge variant="outline">risk {formatFixed(row.copd_risk_score)}/100</Badge>
+                    <Badge variant="outline">{formatNumber(row.n_facilities)} matching facilities</Badge>
+                    <Badge variant="outline">gap {formatFixed(row.gap_score)}</Badge>
+                  </div>
+                  <GapDrivers row={row} />
+
+                  {districtPartners.length > 0 && (
+                    <div className="space-y-1.5 border-t pt-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Potential partners
+                      </div>
+                      {districtPartners.map((partner) => (
+                        <Partner key={String(partner.facility_id)} partner={partner} />
+                      ))}
+                    </div>
+                  )}
+
+                  <SaveScenarioDialog
+                    capability={capability}
+                    state={state}
+                    district={action.district}
+                    snapshot={snapshot}
+                    initialName={action.title}
+                    initialNotes={`${action.rationale}\n\nEvidence confidence: ${action.confidence}. Potential partners are unverified candidates from public catalog contact fields.`}
+                    triggerLabel="Add to scenario"
+                    triggerVariant="outline"
+                  />
+                </section>
+              );
+            })}
+
+            <details className="rounded-md border px-3 py-2 text-xs">
+              <summary className="cursor-pointer font-medium text-foreground">
+                How gaps and actions are calculated
+              </summary>
+              <div className="mt-2 space-y-2 text-muted-foreground">
+                <p>
+                  <strong className="text-foreground">Risk:</strong> 60% solid-fuel exposure plus 40% average adult
+                  tobacco use from NFHS-5.
+                </p>
+                <p>
+                  <strong className="text-foreground">Supply:</strong> trust-weighted catalog records matching the
+                  selected capability.
+                </p>
+                <p>
+                  <strong className="text-foreground">Gap:</strong> risk × remaining scarcity, where three
+                  trust-weighted facilities represents the current district supply target.
+                </p>
+                <p>
+                  <strong className="text-foreground">Confidence:</strong> broader catalog record volume, web-evidence
+                  trust, and complete NFHS inputs. Low confidence always triggers verification first.
+                </p>
+                <p>
+                  Facility age, stale pages, and missing named staff are audit signals only. Partners are public-contact
+                  candidates, not verified NGOs or committed collaborators.
+                </p>
+              </div>
+            </details>
+          </>
+        )}
       </CardContent>
     </Card>
   );

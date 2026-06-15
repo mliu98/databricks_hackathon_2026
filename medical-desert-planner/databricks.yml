@@ -10,6 +10,8 @@ variables:
     description: Full Lakebase Postgres database resource name. Obtain by running `databricks postgres list-databases {branch-name}`, select the desired item from the output array and use its .name value. Requires the branch resource name.
   postgres_project:
     description: Full Lakebase Postgres project resource name. Obtain by running `databricks postgres list-projects`, select the desired item from the output array and use its .name value.
+  genie_space_id:
+    description: Genie Space ID powering the in-app "Ask Genie" chatbot. Obtain from the About tab of the Genie space, or run `databricks genie list-spaces`.
 
 resources:
   apps:
@@ -17,9 +19,10 @@ resources:
       name: "medical-desert-planner"
       description: "A Databricks App powered by AppKit"
       source_code_path: ./
-      # Uncomment to enable on behalf of user API scopes. Available scopes: sql, dashboards.genie, files.files, serving.serving-endpoints
-      # user_api_scopes:
-      #   - sql
+      # On-behalf-of-user API scopes. dashboards.genie lets the app run the
+      # "Ask Genie" chatbot as the signed-in user.
+      user_api_scopes:
+        - dashboards.genie
 
       # The resources which this app has access to.
       resources:
@@ -32,6 +35,10 @@ resources:
             branch: ${var.postgres_branch}
             database: ${var.postgres_database}
             permission: CAN_CONNECT_AND_CREATE
+        - name: genie-space
+          genie_space:
+            id: ${var.genie_space_id}
+            permission: CAN_RUN
 
 targets:
   default:
@@ -44,3 +51,4 @@ targets:
       postgres_branch: projects/medical-desert-planner/branches/production
       postgres_database: projects/medical-desert-planner/branches/production/databases/databricks-postgres
       postgres_project: projects/medical-desert-planner
+      genie_space_id: 01f169069ace1baeb6b2372f42aa5538

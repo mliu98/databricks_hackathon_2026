@@ -451,6 +451,7 @@ export function PlannerPage() {
             )}
             {selectedState && !mapLoading && metric !== 'aqi' && metric !== 'cooking' && (
               <StateActionPanel
+                key={selectedState}
                 state={selectedState}
                 capability={capability}
                 stateRow={selectedStateRow as Record<string, unknown> | undefined}
