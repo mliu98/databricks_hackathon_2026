@@ -1,0 +1,198 @@
+{
+  "generatedAt": "2026-06-15T20:31:31.003Z",
+  "method": "Average AQI readings where PM2.5 is a prominent pollutant, grouped by state across all dates",
+  "states": [
+    {
+      "state": "Delhi",
+      "avgAqi": 233.6,
+      "readingCount": 795,
+      "status": "Poor"
+    },
+    {
+      "state": "Himachal Pradesh",
+      "avgAqi": 210.9,
+      "readingCount": 321,
+      "status": "Poor"
+    },
+    {
+      "state": "Bihar",
+      "avgAqi": 206.4,
+      "readingCount": 9715,
+      "status": "Poor"
+    },
+    {
+      "state": "Chandigarh",
+      "avgAqi": 180.1,
+      "readingCount": 606,
+      "status": "Moderate"
+    },
+    {
+      "state": "Rajasthan",
+      "avgAqi": 179.9,
+      "readingCount": 6861,
+      "status": "Moderate"
+    },
+    {
+      "state": "Jharkhand",
+      "avgAqi": 176.5,
+      "readingCount": 99,
+      "status": "Moderate"
+    },
+    {
+      "state": "Haryana",
+      "avgAqi": 176.2,
+      "readingCount": 11089,
+      "status": "Moderate"
+    },
+    {
+      "state": "Odisha",
+      "avgAqi": 174.9,
+      "readingCount": 3818,
+      "status": "Moderate"
+    },
+    {
+      "state": "West Bengal",
+      "avgAqi": 172.9,
+      "readingCount": 2675,
+      "status": "Moderate"
+    },
+    {
+      "state": "Assam",
+      "avgAqi": 169.8,
+      "readingCount": 2190,
+      "status": "Moderate"
+    },
+    {
+      "state": "Tripura",
+      "avgAqi": 168.2,
+      "readingCount": 583,
+      "status": "Moderate"
+    },
+    {
+      "state": "Punjab",
+      "avgAqi": 159.9,
+      "readingCount": 2904,
+      "status": "Moderate"
+    },
+    {
+      "state": "Uttar Pradesh",
+      "avgAqi": 158,
+      "readingCount": 9054,
+      "status": "Moderate"
+    },
+    {
+      "state": "Madhya Pradesh",
+      "avgAqi": 155.1,
+      "readingCount": 3750,
+      "status": "Moderate"
+    },
+    {
+      "state": "Maharashtra",
+      "avgAqi": 138.7,
+      "readingCount": 6975,
+      "status": "Moderate"
+    },
+    {
+      "state": "Gujarat",
+      "avgAqi": 137.6,
+      "readingCount": 3041,
+      "status": "Moderate"
+    },
+    {
+      "state": "Manipur",
+      "avgAqi": 132.8,
+      "readingCount": 212,
+      "status": "Moderate"
+    },
+    {
+      "state": "Uttarakhand",
+      "avgAqi": 122.8,
+      "readingCount": 629,
+      "status": "Moderate"
+    },
+    {
+      "state": "Jammu and Kashmir",
+      "avgAqi": 113.3,
+      "readingCount": 59,
+      "status": "Moderate"
+    },
+    {
+      "state": "Nagaland",
+      "avgAqi": 107.8,
+      "readingCount": 354,
+      "status": "Moderate"
+    },
+    {
+      "state": "Andhra Pradesh",
+      "avgAqi": 101.2,
+      "readingCount": 2244,
+      "status": "Moderate"
+    },
+    {
+      "state": "Chhattisgarh",
+      "avgAqi": 96.9,
+      "readingCount": 908,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Sikkim",
+      "avgAqi": 92.5,
+      "readingCount": 118,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Puducherry",
+      "avgAqi": 90.5,
+      "readingCount": 206,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Telangana",
+      "avgAqi": 88.5,
+      "readingCount": 590,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Tamil Nadu",
+      "avgAqi": 87,
+      "readingCount": 3016,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Kerala",
+      "avgAqi": 86.8,
+      "readingCount": 1344,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Karnataka",
+      "avgAqi": 80.2,
+      "readingCount": 3182,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Meghalaya",
+      "avgAqi": 79.5,
+      "readingCount": 425,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Mizoram",
+      "avgAqi": 69,
+      "readingCount": 2,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Arunachal Pradesh",
+      "avgAqi": 64.1,
+      "readingCount": 263,
+      "status": "Satisfactory"
+    },
+    {
+      "state": "Andaman and Nicobar Islands",
+      "avgAqi": 62,
+      "readingCount": 2,
+      "status": "Satisfactory"
+    }
+  ]
+}

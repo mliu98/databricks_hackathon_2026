@@ -1,0 +1,222 @@
+{
+  "generatedAt": "2026-06-15T21:18:22.008Z",
+  "method": "Sum of Firewood and Other natural sources household cooking fuel shares by state (NFHS)",
+  "states": [
+    {
+      "state": "Jharkhand",
+      "solidBiomassPct": 68.35,
+      "firewoodPct": 60.09,
+      "otherNaturalPct": 8.26
+    },
+    {
+      "state": "Meghalaya",
+      "solidBiomassPct": 67.85,
+      "firewoodPct": 65.96,
+      "otherNaturalPct": 1.89
+    },
+    {
+      "state": "Chhattisgarh",
+      "solidBiomassPct": 67.21,
+      "firewoodPct": 66.88,
+      "otherNaturalPct": 0.33
+    },
+    {
+      "state": "Odisha",
+      "solidBiomassPct": 65.45,
+      "firewoodPct": 64.74,
+      "otherNaturalPct": 0.71
+    },
+    {
+      "state": "Tripura",
+      "solidBiomassPct": 62,
+      "firewoodPct": 62,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "West Bengal",
+      "solidBiomassPct": 57.4,
+      "firewoodPct": 56.14,
+      "otherNaturalPct": 1.26
+    },
+    {
+      "state": "Rajasthan",
+      "solidBiomassPct": 57.17,
+      "firewoodPct": 56.77,
+      "otherNaturalPct": 0.4
+    },
+    {
+      "state": "Assam",
+      "solidBiomassPct": 55.51,
+      "firewoodPct": 55.51,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Madhya Pradesh",
+      "solidBiomassPct": 52.95,
+      "firewoodPct": 52.21,
+      "otherNaturalPct": 0.74
+    },
+    {
+      "state": "Himachal Pradesh",
+      "solidBiomassPct": 51.24,
+      "firewoodPct": 51.24,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Bihar",
+      "solidBiomassPct": 46.37,
+      "firewoodPct": 39.45,
+      "otherNaturalPct": 6.92
+    },
+    {
+      "state": "Nagaland",
+      "solidBiomassPct": 46.12,
+      "firewoodPct": 46.12,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Uttar Pradesh",
+      "solidBiomassPct": 44.04,
+      "firewoodPct": 38.67,
+      "otherNaturalPct": 5.37
+    },
+    {
+      "state": "Arunachal Pradesh",
+      "solidBiomassPct": 33.27,
+      "firewoodPct": 33.27,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Uttarakhand",
+      "solidBiomassPct": 30.19,
+      "firewoodPct": 30.14,
+      "otherNaturalPct": 0.05
+    },
+    {
+      "state": "Kerala",
+      "solidBiomassPct": 29.7,
+      "firewoodPct": 29.53,
+      "otherNaturalPct": 0.17
+    },
+    {
+      "state": "Jammu  and  Kashmir",
+      "solidBiomassPct": 26.8,
+      "firewoodPct": 26.8,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Haryana",
+      "solidBiomassPct": 23.53,
+      "firewoodPct": 19.76,
+      "otherNaturalPct": 3.77
+    },
+    {
+      "state": "Gujarat",
+      "solidBiomassPct": 19.44,
+      "firewoodPct": 19.33,
+      "otherNaturalPct": 0.11
+    },
+    {
+      "state": "Lakshadweep",
+      "solidBiomassPct": 18.52,
+      "firewoodPct": 18.52,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Manipur",
+      "solidBiomassPct": 16.56,
+      "firewoodPct": 16.47,
+      "otherNaturalPct": 0.09
+    },
+    {
+      "state": "Maharashtra",
+      "solidBiomassPct": 16.27,
+      "firewoodPct": 15.94,
+      "otherNaturalPct": 0.33
+    },
+    {
+      "state": "Dadra and Nagar Haveli and Daman and Diu",
+      "solidBiomassPct": 16.26,
+      "firewoodPct": 16.26,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Sikkim",
+      "solidBiomassPct": 13.25,
+      "firewoodPct": 13.25,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Karnataka",
+      "solidBiomassPct": 10.35,
+      "firewoodPct": 10.31,
+      "otherNaturalPct": 0.04
+    },
+    {
+      "state": "Punjab",
+      "solidBiomassPct": 9.45,
+      "firewoodPct": 6.87,
+      "otherNaturalPct": 2.58
+    },
+    {
+      "state": "Tamil Nadu",
+      "solidBiomassPct": 9.22,
+      "firewoodPct": 9.21,
+      "otherNaturalPct": 0.01
+    },
+    {
+      "state": "Andhra Pradesh",
+      "solidBiomassPct": 7.21,
+      "firewoodPct": 7.17,
+      "otherNaturalPct": 0.04
+    },
+    {
+      "state": "Andaman and Nicobar Islands",
+      "solidBiomassPct": 4.38,
+      "firewoodPct": 4.38,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Mizoram",
+      "solidBiomassPct": 3.61,
+      "firewoodPct": 3.61,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Puducherry",
+      "solidBiomassPct": 2.8,
+      "firewoodPct": 2.8,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Telangana",
+      "solidBiomassPct": 1.16,
+      "firewoodPct": 1.16,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Goa",
+      "solidBiomassPct": 1.12,
+      "firewoodPct": 1.12,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Delhi",
+      "solidBiomassPct": 0.42,
+      "firewoodPct": 0.1,
+      "otherNaturalPct": 0.32
+    },
+    {
+      "state": "Ladakh",
+      "solidBiomassPct": 0.4,
+      "firewoodPct": 0.4,
+      "otherNaturalPct": 0
+    },
+    {
+      "state": "Chandigarh",
+      "solidBiomassPct": 0.14,
+      "firewoodPct": 0.14,
+      "otherNaturalPct": 0
+    }
+  ]
+}

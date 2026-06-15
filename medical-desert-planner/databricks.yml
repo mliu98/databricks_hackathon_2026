@@ -37,10 +37,11 @@ targets:
   default:
     default: true
     workspace:
-      host: https://dbc-529fbae2-e4dd.cloud.databricks.com
+      host: https://dbc-02efc700-167b.cloud.databricks.com
+      profile: hasan-personal
 
     variables:
-      sql_warehouse_id: 157357f8d788b28d
+      sql_warehouse_id: 5d102ce06e2914ce
       postgres_branch: projects/medical-desert-planner/branches/production
       postgres_database: projects/medical-desert-planner/branches/production/databases/databricks-postgres
       postgres_project: projects/medical-desert-planner

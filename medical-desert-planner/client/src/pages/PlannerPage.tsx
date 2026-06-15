@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAnalyticsQuery } from '@databricks/appkit-ui/react';
 import { sql } from '@databricks/appkit-ui/js';
 import {
@@ -22,10 +22,13 @@ import { IndiaMap, type StateDatum } from '../components/IndiaMap';
 import { RegionDetail } from '../components/RegionDetail';
 import { StateActionPanel } from '../components/StateActionPanel';
 import { KpiCard, ConfidenceBadge, GapPill, pct } from '../components/StatBits';
+import { loadStateAqiDataset, stateAqiByKey, type StateAqiRow } from '../lib/aqi';
+import { loadStateCookingDataset, stateCookingByKey, type StateCookingRow } from '../lib/cooking';
+import { visibleAnalyticsError } from '../lib/analytics-query';
 import { normalizeStateKey } from '../lib/geo';
 import { formatFixed, formatNumber, formatOptionalFixed, toFiniteNumber } from '../lib/numbers';
 
-type Metric = 'coverage' | 'gap';
+type Metric = 'coverage' | 'gap' | 'aqi' | 'cooking';
 
 // Stable empty-array reference so memo deps don't change while data is loading.
 const EMPTY_ROWS: never[] = [];
@@ -46,19 +49,103 @@ export function PlannerPage() {
   const [capability, setCapability] = useState('all');
   const [metric, setMetric] = useState<Metric>('coverage');
   const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [aqiRows, setAqiRows] = useState<StateAqiRow[]>([]);
+  const [aqiLoading, setAqiLoading] = useState(true);
+  const [aqiError, setAqiError] = useState<string | null>(null);
+  const [cookingRows, setCookingRows] = useState<StateCookingRow[]>([]);
+  const [cookingLoading, setCookingLoading] = useState(true);
+  const [cookingError, setCookingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setAqiLoading(true);
+    loadStateAqiDataset()
+      .then((dataset) => {
+        if (!active) return;
+        setAqiRows(dataset.states);
+        setAqiError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setAqiRows([]);
+        setAqiError(err instanceof Error ? err.message : 'Failed to load AQI data');
+      })
+      .finally(() => {
+        if (active) setAqiLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setCookingLoading(true);
+    loadStateCookingDataset()
+      .then((dataset) => {
+        if (!active) return;
+        setCookingRows(dataset.states);
+        setCookingError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setCookingRows([]);
+        setCookingError(err instanceof Error ? err.message : 'Failed to load cooking fuel data');
+      })
+      .finally(() => {
+        if (active) setCookingLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const specialtyParams = useMemo(() => ({}), []);
   const capabilityParams = useMemo(() => ({ capability: sql.string(capability) }), [capability]);
 
   const specialties = useAnalyticsQuery('specialty_options', specialtyParams);
   const kpis = useAnalyticsQuery('national_kpis', capabilityParams);
-  const coverage = useAnalyticsQuery('state_coverage', capabilityParams);
+  const coverageEnabled = metric !== 'aqi' && metric !== 'cooking';
+  const coverage = useAnalyticsQuery('state_coverage', capabilityParams, { autoStart: coverageEnabled });
 
   const stateRows = coverage.data ?? EMPTY_ROWS;
+  const coverageLoadError = visibleAnalyticsError(coverage.error, {
+    loading: coverage.loading,
+    data: coverage.data,
+  });
+  const aqiByKey = useMemo(() => stateAqiByKey(aqiRows), [aqiRows]);
+  const cookingByKey = useMemo(() => stateCookingByKey(cookingRows), [cookingRows]);
 
   const { mapData, maxValue } = useMemo(() => {
     const m = new Map<string, StateDatum>();
     let max = 0;
+
+    if (metric === 'aqi') {
+      for (const row of aqiRows) {
+        max = Math.max(max, row.avgAqi);
+        m.set(normalizeStateKey(row.state), {
+          state: row.state,
+          value: row.avgAqi,
+          valueLabel: `Avg AQI ${formatFixed(row.avgAqi)}`,
+          subLabel: `${row.status} · ${formatNumber(row.readingCount)} PM2.5 readings`,
+        });
+      }
+      return { mapData: m, maxValue: max };
+    }
+
+    if (metric === 'cooking') {
+      for (const row of cookingRows) {
+        max = Math.max(max, row.solidBiomassPct);
+        m.set(normalizeStateKey(row.state), {
+          state: row.state,
+          value: row.solidBiomassPct,
+          valueLabel: `Solid biomass fuel ${formatFixed(row.solidBiomassPct, 1)}%`,
+          subLabel: `Firewood ${formatFixed(row.firewoodPct, 1)}% · other natural ${formatFixed(row.otherNaturalPct, 1)}%`,
+        });
+      }
+      return { mapData: m, maxValue: max };
+    }
+
     for (const r of stateRows) {
       const trustWeighted = toFiniteNumber(r.trust_weighted);
       const gapScore = toFiniteNumber(r.gap_score);
@@ -75,17 +162,21 @@ export function PlannerPage() {
       });
     }
     return { mapData: m, maxValue: max };
-  }, [stateRows, metric]);
+  }, [stateRows, metric, aqiRows, cookingRows]);
 
-  const rankedRows = useMemo(
-    () =>
-      [...stateRows].sort((a, b) =>
-        metric === 'coverage'
-          ? toFiniteNumber(b.trust_weighted) - toFiniteNumber(a.trust_weighted)
-          : toFiniteNumber(b.gap_score) - toFiniteNumber(a.gap_score)
-      ),
-    [stateRows, metric]
-  );
+  const rankedRows = useMemo(() => {
+    if (metric === 'aqi') {
+      return [...aqiRows].sort((a, b) => b.avgAqi - a.avgAqi);
+    }
+    if (metric === 'cooking') {
+      return [...cookingRows].sort((a, b) => b.solidBiomassPct - a.solidBiomassPct);
+    }
+    return [...stateRows].sort((a, b) =>
+      metric === 'coverage'
+        ? toFiniteNumber(b.trust_weighted) - toFiniteNumber(a.trust_weighted)
+        : toFiniteNumber(b.gap_score) - toFiniteNumber(a.gap_score)
+    );
+  }, [stateRows, metric, aqiRows, cookingRows]);
   const selectedStateRow = useMemo(
     () =>
       selectedState
@@ -95,7 +186,46 @@ export function PlannerPage() {
   );
 
   const k = kpis.data?.[0];
-  const colorVar = metric === 'coverage' ? '--success' : '--destructive';
+  const colorVar =
+    metric === 'coverage'
+      ? '--success'
+      : metric === 'gap'
+        ? '--destructive'
+        : metric === 'aqi'
+          ? '--chart-4'
+          : '--warning';
+  const mapLoading =
+    metric === 'aqi' ? aqiLoading : metric === 'cooking' ? cookingLoading : coverage.loading;
+  const mapTitle =
+    metric === 'coverage'
+      ? 'Trust-weighted COPD-care coverage'
+      : metric === 'gap'
+        ? 'COPD care-gap risk by state'
+        : metric === 'aqi'
+          ? 'Average PM2.5 AQI by state'
+          : 'Household solid biomass fuel use by state';
+  const mapLegend =
+    metric === 'coverage'
+      ? 'More trusted supply'
+      : metric === 'gap'
+        ? 'Higher care gap'
+        : metric === 'aqi'
+          ? 'Higher AQI (worse air)'
+          : 'Higher solid biomass use';
+  const rankTitle =
+    metric === 'coverage'
+      ? 'Best COPD-care coverage'
+      : metric === 'gap'
+        ? 'Highest COPD care gaps'
+        : metric === 'aqi'
+          ? 'Highest average AQI'
+          : 'Highest solid biomass fuel use';
+  const noDataLabel =
+    metric === 'aqi'
+      ? 'No PM2.5 AQI data'
+      : metric === 'cooking'
+        ? 'No cooking fuel data'
+        : 'No facility evidence';
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -134,6 +264,8 @@ export function PlannerPage() {
             >
               <ToggleGroupItem value="coverage">Coverage</ToggleGroupItem>
               <ToggleGroupItem value="gap">Care gaps</ToggleGroupItem>
+              <ToggleGroupItem value="aqi">AQI overlay</ToggleGroupItem>
+              <ToggleGroupItem value="cooking">Cooking fuel</ToggleGroupItem>
             </ToggleGroup>
           </div>
         </div>
@@ -177,9 +309,21 @@ export function PlannerPage() {
         )}
       </div>
 
-      {coverage.error && (
+      {aqiError && metric === 'aqi' && (
         <Alert variant="destructive">
-          <AlertDescription>Failed to load coverage data: {coverage.error}</AlertDescription>
+          <AlertDescription>Failed to load AQI data: {aqiError}</AlertDescription>
+        </Alert>
+      )}
+
+      {cookingError && metric === 'cooking' && (
+        <Alert variant="destructive">
+          <AlertDescription>Failed to load cooking fuel data: {cookingError}</AlertDescription>
+        </Alert>
+      )}
+
+      {coverageLoadError && (
+        <Alert variant="destructive">
+          <AlertDescription>Failed to load coverage data: {coverageLoadError}</AlertDescription>
         </Alert>
       )}
 
@@ -187,13 +331,11 @@ export function PlannerPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle>
-              {metric === 'coverage' ? 'Trust-weighted COPD-care coverage' : 'COPD care-gap risk by state'}
-            </CardTitle>
-            <Legend colorVar={colorVar} label={metric === 'coverage' ? 'More trusted supply' : 'Higher care gap'} />
+            <CardTitle>{mapTitle}</CardTitle>
+            <Legend colorVar={colorVar} label={mapLegend} />
           </CardHeader>
           <CardContent className="relative">
-            {coverage.loading ? (
+            {mapLoading ? (
               <Skeleton className="w-full" style={{ aspectRatio: '720 / 780' }} />
             ) : (
               <IndiaMap
@@ -202,9 +344,12 @@ export function PlannerPage() {
                 maxValue={maxValue}
                 selectedState={selectedState}
                 onSelect={(s) => setSelectedState(s)}
+                noDataLabel={noDataLabel}
+                aqiByKey={metric !== 'aqi' ? aqiByKey : undefined}
+                cookingByKey={metric !== 'cooking' ? cookingByKey : undefined}
               />
             )}
-            {selectedState && !coverage.loading && (
+            {selectedState && !mapLoading && metric !== 'aqi' && metric !== 'cooking' && (
               <StateActionPanel
                 state={selectedState}
                 capability={capability}
@@ -217,40 +362,88 @@ export function PlannerPage() {
 
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-base">
-              {metric === 'coverage' ? 'Best COPD-care coverage' : 'Highest COPD care gaps'}
-            </CardTitle>
+            <CardTitle className="text-base">{rankTitle}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="max-h-[680px] overflow-auto">
-              {coverage.loading
+              {mapLoading
                 ? Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="mx-4 my-2 h-10" />)
-                : rankedRows.map((r, idx) => {
-                    const isSel =
-                      selectedState != null && normalizeStateKey(selectedState) === normalizeStateKey(r.state);
-                    return (
-                      <button
-                        key={r.state}
-                        onClick={() => setSelectedState(r.state)}
-                        className={`flex w-full items-center gap-3 border-b px-4 py-2.5 text-left transition-colors hover:bg-muted ${isSel ? 'bg-muted' : ''}`}
-                      >
-                        <span className="w-5 text-xs tabular-nums text-muted-foreground">{idx + 1}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-foreground">{r.state}</span>
-                          <span className="block text-xs text-muted-foreground">
-                            {formatNumber(r.n_facilities)} facilities
+                : metric === 'aqi'
+                  ? rankedRows.map((row, idx) => {
+                      const aqiRow = row as StateAqiRow;
+                      const isSel =
+                        selectedState != null && normalizeStateKey(selectedState) === normalizeStateKey(aqiRow.state);
+                      return (
+                        <button
+                          key={aqiRow.state}
+                          onClick={() => setSelectedState(aqiRow.state)}
+                          className={`flex w-full items-center gap-3 border-b px-4 py-2.5 text-left transition-colors hover:bg-muted ${isSel ? 'bg-muted' : ''}`}
+                        >
+                          <span className="w-5 text-xs tabular-nums text-muted-foreground">{idx + 1}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-foreground">{aqiRow.state}</span>
+                            <span className="block text-xs text-muted-foreground">{aqiRow.status}</span>
                           </span>
-                        </span>
-                        {metric === 'coverage' ? (
                           <span className="text-sm font-semibold tabular-nums text-foreground">
-                            {formatFixed(r.trust_weighted)}
+                            {formatFixed(aqiRow.avgAqi)}
                           </span>
-                        ) : (
-                          <GapPill score={r.gap_score} />
-                        )}
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })
+                  : metric === 'cooking'
+                    ? rankedRows.map((row, idx) => {
+                        const cookingRow = row as StateCookingRow;
+                        const isSel =
+                          selectedState != null &&
+                          normalizeStateKey(selectedState) === normalizeStateKey(cookingRow.state);
+                        return (
+                          <button
+                            key={cookingRow.state}
+                            onClick={() => setSelectedState(cookingRow.state)}
+                            className={`flex w-full items-center gap-3 border-b px-4 py-2.5 text-left transition-colors hover:bg-muted ${isSel ? 'bg-muted' : ''}`}
+                          >
+                            <span className="w-5 text-xs tabular-nums text-muted-foreground">{idx + 1}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-foreground">
+                                {cookingRow.state}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">
+                                Firewood {formatFixed(cookingRow.firewoodPct, 1)}%
+                              </span>
+                            </span>
+                            <span className="text-sm font-semibold tabular-nums text-foreground">
+                              {formatFixed(cookingRow.solidBiomassPct, 1)}%
+                            </span>
+                          </button>
+                        );
+                      })
+                  : rankedRows.map((r, idx) => {
+                      const stateRow = r as (typeof stateRows)[number];
+                      const isSel =
+                        selectedState != null && normalizeStateKey(selectedState) === normalizeStateKey(stateRow.state);
+                      return (
+                        <button
+                          key={stateRow.state}
+                          onClick={() => setSelectedState(stateRow.state)}
+                          className={`flex w-full items-center gap-3 border-b px-4 py-2.5 text-left transition-colors hover:bg-muted ${isSel ? 'bg-muted' : ''}`}
+                        >
+                          <span className="w-5 text-xs tabular-nums text-muted-foreground">{idx + 1}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-foreground">{stateRow.state}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {formatNumber(stateRow.n_facilities)} facilities
+                            </span>
+                          </span>
+                          {metric === 'coverage' ? (
+                            <span className="text-sm font-semibold tabular-nums text-foreground">
+                              {formatFixed(stateRow.trust_weighted)}
+                            </span>
+                          ) : (
+                            <GapPill score={stateRow.gap_score} />
+                          )}
+                        </button>
+                      );
+                    })}
             </div>
           </CardContent>
         </Card>
