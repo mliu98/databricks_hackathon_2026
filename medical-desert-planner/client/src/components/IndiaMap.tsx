@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { geoMercator, geoPath } from 'd3-geo';
 import { Skeleton } from '@databricks/appkit-ui/react';
 import { normalizeStateKey, type GeoCollection } from '../lib/geo';
+import { aqiHoverLabel, type StateAqiRow } from '../lib/aqi';
+import { cookingHoverLabel, type StateCookingRow } from '../lib/cooking';
 
 export interface StateDatum {
   /** Display name as it appears in the warehouse data (used for drill-down). */
@@ -19,12 +21,26 @@ interface IndiaMapProps {
   maxValue: number;
   selectedState: string | null;
   onSelect: (state: string) => void;
+  noDataLabel?: string;
+  /** Optional PM2.5 AQI averages keyed by normalizeStateKey(state). */
+  aqiByKey?: Map<string, StateAqiRow>;
+  /** Optional solid biomass cooking fuel shares keyed by normalizeStateKey(state). */
+  cookingByKey?: Map<string, StateCookingRow>;
 }
 
 const WIDTH = 720;
 const HEIGHT = 780;
 
-export function IndiaMap({ data, colorVar, maxValue, selectedState, onSelect }: IndiaMapProps) {
+export function IndiaMap({
+  data,
+  colorVar,
+  maxValue,
+  selectedState,
+  onSelect,
+  noDataLabel = 'No facility evidence',
+  aqiByKey,
+  cookingByKey,
+}: IndiaMapProps) {
   const [geo, setGeo] = useState<GeoCollection | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; datum: StateDatum | null; name: string } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -86,22 +102,29 @@ export function IndiaMap({ data, colorVar, maxValue, selectedState, onSelect }: 
         })}
       </svg>
 
-      {tooltip && (
-        <div
-          className="pointer-events-none absolute z-10 rounded-md border bg-popover px-3 py-2 text-xs shadow-md"
-          style={{ left: tooltip.x + 12, top: tooltip.y + 12, maxWidth: 220 }}
-        >
-          <div className="font-semibold text-popover-foreground">{tooltip.name}</div>
-          {tooltip.datum ? (
-            <>
-              <div className="text-popover-foreground">{tooltip.datum.valueLabel}</div>
-              {tooltip.datum.subLabel && <div className="text-muted-foreground">{tooltip.datum.subLabel}</div>}
-            </>
-          ) : (
-            <div className="text-muted-foreground">No facility evidence</div>
-          )}
-        </div>
-      )}
+      {tooltip && (() => {
+        const key = normalizeStateKey(tooltip.name);
+        const aqi = aqiByKey?.get(key);
+        const cooking = cookingByKey?.get(key);
+        return (
+          <div
+            className="pointer-events-none absolute z-10 rounded-md border bg-popover px-3 py-2 text-xs shadow-md"
+            style={{ left: tooltip.x + 12, top: tooltip.y + 12, maxWidth: 220 }}
+          >
+            <div className="font-semibold text-popover-foreground">{tooltip.name}</div>
+            {tooltip.datum ? (
+              <>
+                <div className="text-popover-foreground">{tooltip.datum.valueLabel}</div>
+                {tooltip.datum.subLabel && <div className="text-muted-foreground">{tooltip.datum.subLabel}</div>}
+              </>
+            ) : (
+              <div className="text-muted-foreground">{noDataLabel}</div>
+            )}
+            {aqi && <div className="text-muted-foreground">{aqiHoverLabel(aqi)}</div>}
+            {cooking && <div className="text-muted-foreground">{cookingHoverLabel(cooking)}</div>}
+          </div>
+        );
+      })()}
     </div>
   );
 }
