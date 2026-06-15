@@ -79,7 +79,12 @@ export function IndiaMap({
 
   return (
     <div ref={wrapperRef} className="relative w-full">
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto" role="img" aria-label="Choropleth map of India by state">
+      <svg
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        className="mx-auto h-auto w-full max-w-[620px]"
+        role="img"
+        aria-label="Choropleth map of India by state"
+      >
         {paths.map((p) => {
           const isSelected = p.key === selectedKey;
           const hasData = p.datum !== null;
