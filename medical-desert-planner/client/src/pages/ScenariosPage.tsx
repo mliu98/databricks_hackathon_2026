@@ -11,10 +11,12 @@ import {
   AlertDescription,
   Empty,
 } from '@databricks/appkit-ui/react';
-import { Trash2, MapPin, RefreshCw } from 'lucide-react';
+import { Trash2, MapPin, RefreshCw, FileDown } from 'lucide-react';
 import { listScenarios, deleteScenario, type Scenario } from '../lib/scenarios';
 import { pct } from '../components/StatBits';
 import { EditScenarioDialog } from '../components/EditScenarioDialog';
+import { ViewScenarioDialog } from '../components/ViewScenarioDialog';
+import { exportScenarioPdf } from '../lib/scenarioReport';
 import { formatFixed, formatNumber } from '../lib/numbers';
 
 export function ScenariosPage() {
@@ -91,6 +93,15 @@ export function ScenariosPage() {
                   </div>
                 </div>
                 <div className="flex items-center">
+                  <ViewScenarioDialog scenario={s} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => exportScenarioPdf(s)}
+                    aria-label={`Export ${s.name} as PDF`}
+                  >
+                    <FileDown className="h-4 w-4" />
+                  </Button>
                   <EditScenarioDialog scenario={s} onUpdated={replaceScenario} />
                   <Button
                     variant="ghost"

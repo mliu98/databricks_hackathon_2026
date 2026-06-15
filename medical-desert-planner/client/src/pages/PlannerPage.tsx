@@ -111,13 +111,22 @@ export function PlannerPage() {
           <div className="space-y-1.5">
             <Label htmlFor="capability">Capability</Label>
             <Select value={capability} onValueChange={(v) => setCapability(v)}>
-              <SelectTrigger id="capability" className="w-56">
+              <SelectTrigger
+                id="capability"
+                className="w-56 bg-card text-foreground border border-input shadow-sm"
+              >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All COPD care</SelectItem>
+              <SelectContent className="bg-card text-foreground border border-input shadow-xl">
+                <SelectItem value="all" className="text-foreground">
+                  All COPD care
+                </SelectItem>
                 {(specialties.data ?? []).map((s) => (
-                  <SelectItem key={s.capability} value={s.capability}>
+                  <SelectItem
+                    key={s.capability}
+                    value={s.capability}
+                    className="text-foreground"
+                  >
                     {humanize(s.capability)} ({formatNumber(s.facility_mentions)})
                   </SelectItem>
                 ))}
@@ -131,9 +140,20 @@ export function PlannerPage() {
               value={metric}
               onValueChange={(v) => v && setMetric(v as Metric)}
               variant="outline"
+              className="inline-flex rounded-md border border-input bg-card text-foreground"
             >
-              <ToggleGroupItem value="coverage">Coverage</ToggleGroupItem>
-              <ToggleGroupItem value="gap">Care gaps</ToggleGroupItem>
+              <ToggleGroupItem
+                value="coverage"
+                className="px-3 py-2 text-sm text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                Coverage
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="gap"
+                className="px-3 py-2 text-sm text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                Care gaps
+              </ToggleGroupItem>
             </ToggleGroup>
           </div>
         </div>

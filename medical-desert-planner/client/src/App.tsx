@@ -1,9 +1,10 @@
 import { createBrowserRouter, RouterProvider, NavLink, Outlet } from 'react-router';
 import { useState } from 'react';
 import { Button, Sheet, SheetContent, SheetHeader, SheetTitle } from '@databricks/appkit-ui/react';
-import { Menu, Activity } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { PlannerPage } from './pages/PlannerPage';
 import { ScenariosPage } from './pages/ScenariosPage';
+import { LandingPage } from './pages/LandingPage';
 import { ErrorBoundary, RouteErrorPage } from './ErrorBoundary';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -29,7 +30,7 @@ function NavLinks({
 }) {
   return (
     <nav className={className}>
-      <NavLink to="/" end className={linkClass} onClick={onClick}>
+      <NavLink to="/planner" end className={linkClass} onClick={onClick}>
         Planner
       </NavLink>
       <NavLink to="/scenarios" className={linkClass} onClick={onClick}>
@@ -45,12 +46,14 @@ function Layout() {
   return (
     <div className="dark flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-50 flex items-center gap-4 border-b border-white/10 bg-background/90 px-4 py-3 backdrop-blur-xl md:px-6">
-        <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Activity className="h-4 w-4" />
-          </span>
-          <h1 className="text-base font-semibold text-foreground">Medical Desert Planner</h1>
-        </div>
+        <NavLink to="/" className="flex items-center gap-3" aria-label="Go to landing page">
+          <img
+            src="/img/high-resolution-color-logo.png"
+            alt="Medical Desert Planner logo"
+            className="h-20 w-auto"
+          />
+          <span className="sr-only">Medical Desert Planner</span>
+        </NavLink>
         <NavLinks className="hidden gap-1 md:flex" linkClass={navLinkClass} />
         <div className="ml-auto md:hidden">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
@@ -80,11 +83,12 @@ function Layout() {
 }
 
 const router = createBrowserRouter([
+  { path: '/', element: <LandingPage />, errorElement: <RouteErrorPage /> },
   {
     element: <Layout />,
     errorElement: <RouteErrorPage />,
     children: [
-      { path: '/', element: <PlannerPage /> },
+      { path: '/planner', element: <PlannerPage /> },
       { path: '/scenarios', element: <ScenariosPage /> },
     ],
   },

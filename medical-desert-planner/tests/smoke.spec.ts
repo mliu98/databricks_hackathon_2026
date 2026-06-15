@@ -10,8 +10,18 @@ let consoleErrors: string[] = [];
 let pageErrors: string[] = [];
 let failedRequests: string[] = [];
 
-test('smoke test - planner page loads', async ({ page }) => {
+test('smoke test - landing page loads and navigates', async ({ page }) => {
   await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: 'COPD Care-Gap Planner', level: 1 })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Close the gap' }).click();
+  await expect(page).toHaveURL(/\/planner$/);
+  await expect(page.getByRole('heading', { name: 'Medical Desert Planner', level: 2 })).toBeVisible();
+});
+
+test('smoke test - planner page loads', async ({ page }) => {
+  await page.goto('/planner');
 
   await expect(page.getByRole('heading', { name: 'Medical Desert Planner', level: 2 })).toBeVisible();
   await expect(page.getByText('Where are the highest-risk gaps in care')).toBeVisible();
@@ -35,7 +45,7 @@ test('smoke test - saved scenarios page loads', async ({ page }) => {
 });
 
 test('smoke test - COPD district and facility evidence loads', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/planner');
   await expect(page.getByText('COPD-care facilities')).toBeVisible();
 
   const districtResponse = page.waitForResponse((response) => response.url().includes('/district_coverage'));
