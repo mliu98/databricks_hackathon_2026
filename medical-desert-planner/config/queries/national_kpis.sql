@@ -42,13 +42,6 @@ fac AS (
     OR (:capability = 'inhalerNebulizer' AND evidence_text RLIKE 'nebul|inhaler|bronchodilator')
     OR (:capability = 'pulmonaryRehab' AND evidence_text RLIKE 'pulmonary rehab|respiratory rehab')
     OR (:capability = 'criticalCare' AND evidence_text RLIKE 'criticalcaremedicine|critical care|intensive care|\\bicu\\b|ventilat')
-),
-nfhs AS (
-  SELECT
-    AVG(households_using_clean_fuel_for_cooking_pct) AS clean_fuel_pct,
-    AVG(w15_plus_who_use_any_kind_of_tobacco_pct) AS women_tobacco_pct,
-    AVG(m15_plus_who_use_any_kind_of_tobacco_pct) AS men_tobacco_pct
-  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.nfhs_5_district_health_indicators
 )
 SELECT
   COUNT(*) AS n_facilities,
@@ -56,12 +49,5 @@ SELECT
   COUNT(DISTINCT district) AS n_districts,
   ROUND(AVG(trust_score), 0) AS avg_trust,
   ROUND(SUM(trust_score) / 100.0, 0) AS trust_weighted,
-  SUM(CASE WHEN latitude BETWEEN 6 AND 37 THEN 1 ELSE 0 END) AS geocoded,
-  ROUND(
-    0.60 * (100 - nfhs.clean_fuel_pct)
-    + 0.40 * ((nfhs.women_tobacco_pct + nfhs.men_tobacco_pct) / 2.0),
-    1
-  ) AS avg_copd_risk
-FROM fac
-CROSS JOIN nfhs
-GROUP BY nfhs.clean_fuel_pct, nfhs.women_tobacco_pct, nfhs.men_tobacco_pct;
+  SUM(CASE WHEN latitude BETWEEN 6 AND 37 THEN 1 ELSE 0 END) AS geocoded
+FROM fac;

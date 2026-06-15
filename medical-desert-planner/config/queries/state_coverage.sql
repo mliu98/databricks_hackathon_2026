@@ -84,14 +84,7 @@ combined AS (
     n.women_tobacco_pct,
     n.men_tobacco_pct,
     n.child_ari_pct,
-    n.insurance_pct,
-    CASE
-      WHEN n.clean_fuel_pct IS NOT NULL
-       AND n.women_tobacco_pct IS NOT NULL
-       AND n.men_tobacco_pct IS NOT NULL
-      THEN 0.60 * (100 - n.clean_fuel_pct)
-        + 0.40 * ((n.women_tobacco_pct + n.men_tobacco_pct) / 2.0)
-    END AS copd_risk
+    n.insurance_pct
   FROM state_dim d
   LEFT JOIN state_fac f ON d.state_key = f.state_key
   LEFT JOIN nfhs n ON regexp_replace(regexp_replace(d.state_key, '^(THE|NCTOF)', ''), 'MAHARASTRA', 'MAHARASHTRA') = n.state_key
@@ -108,15 +101,10 @@ SELECT
   ROUND((women_tobacco_pct + men_tobacco_pct) / 2.0, 1) AS adult_tobacco_pct,
   ROUND(child_ari_pct, 1) AS child_ari_pct,
   ROUND(insurance_pct, 1) AS insurance_pct,
-  ROUND(copd_risk, 1) AS copd_risk_score,
-  CASE
-    WHEN copd_risk IS NOT NULL
-    THEN ROUND(copd_risk * (1 - LEAST(trust_weighted / 20.0, 1)), 1)
-  END AS gap_score,
   CASE
     WHEN trust_weighted >= 8 THEN 'high'
     WHEN trust_weighted >= 2 THEN 'medium'
     ELSE 'low'
   END AS data_confidence
 FROM combined
-ORDER BY gap_score DESC, n_facilities DESC;
+ORDER BY trust_weighted ASC, n_facilities DESC;

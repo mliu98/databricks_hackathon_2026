@@ -24,11 +24,16 @@ import { StateActionPanel } from '../components/StateActionPanel';
 import { KpiCard, ConfidenceBadge, GapPill, pct } from '../components/StatBits';
 import { loadStateAqiDataset, stateAqiByKey, type StateAqiRow } from '../lib/aqi';
 import { loadStateCookingDataset, stateCookingByKey, type StateCookingRow } from '../lib/cooking';
+import {
+  aqiBoundsFromRows,
+  averageCopdRiskScore,
+  enrichStateCoverageRows,
+} from '../lib/copdRisk';
 import { visibleAnalyticsError } from '../lib/analytics-query';
 import { normalizeStateKey } from '../lib/geo';
 import { formatFixed, formatNumber, formatOptionalFixed, toFiniteNumber } from '../lib/numbers';
 
-type Metric = 'coverage' | 'gap' | 'aqi' | 'cooking';
+type Metric = 'coverage' | 'gap' | 'risk' | 'aqi' | 'cooking';
 
 // Stable empty-array reference so memo deps don't change while data is loading.
 const EMPTY_ROWS: never[] = [];
@@ -112,7 +117,13 @@ export function PlannerPage() {
     data: coverage.data,
   });
   const aqiByKey = useMemo(() => stateAqiByKey(aqiRows), [aqiRows]);
+  const aqiBounds = useMemo(() => aqiBoundsFromRows(aqiRows), [aqiRows]);
   const cookingByKey = useMemo(() => stateCookingByKey(cookingRows), [cookingRows]);
+  const enrichedStateRows = useMemo(
+    () => enrichStateCoverageRows(stateRows, aqiByKey, aqiBounds),
+    [stateRows, aqiByKey, aqiBounds]
+  );
+  const avgCopdRisk = useMemo(() => averageCopdRiskScore(enrichedStateRows), [enrichedStateRows]);
 
   const { mapData, maxValue } = useMemo(() => {
     const m = new Map<string, StateDatum>();
@@ -144,10 +155,14 @@ export function PlannerPage() {
       return { mapData: m, maxValue: max };
     }
 
-    for (const r of stateRows) {
+    for (const r of enrichedStateRows) {
       const trustWeighted = toFiniteNumber(r.trust_weighted);
       const gapScore = toFiniteNumber(r.gap_score);
-      const value = metric === 'coverage' ? trustWeighted : gapScore;
+      const riskScore = toFiniteNumber(r.copd_risk_score);
+      if (metric === 'risk' && r.copd_risk_score == null) continue;
+
+      const value =
+        metric === 'coverage' ? trustWeighted : metric === 'risk' ? riskScore : gapScore;
       max = Math.max(max, value);
       m.set(normalizeStateKey(r.state), {
         state: r.state,
@@ -155,12 +170,17 @@ export function PlannerPage() {
         valueLabel:
           metric === 'coverage'
             ? `${formatFixed(trustWeighted)} trust-weighted facilities`
-            : `Gap score ${formatOptionalFixed(r.gap_score)}`,
-        subLabel: `${formatNumber(r.n_facilities)} facilities · COPD risk ${formatOptionalFixed(r.copd_risk_score)} · clean fuel ${pct(r.clean_fuel_pct)}`,
+            : metric === 'risk'
+              ? `COPD risk ${formatOptionalFixed(r.copd_risk_score)}/100`
+              : `Gap score ${formatOptionalFixed(r.gap_score)}`,
+        subLabel:
+          metric === 'risk'
+            ? `AQI ${formatOptionalFixed(r.avg_aqi)} · clean fuel ${pct(r.clean_fuel_pct)} · ${formatNumber(r.n_facilities)} facilities`
+            : `${formatNumber(r.n_facilities)} facilities · COPD risk ${formatOptionalFixed(r.copd_risk_score)} · clean fuel ${pct(r.clean_fuel_pct)}`,
       });
     }
     return { mapData: m, maxValue: max };
-  }, [stateRows, metric, aqiRows, cookingRows]);
+  }, [enrichedStateRows, metric, aqiRows, cookingRows]);
 
   const rankedRows = useMemo(() => {
     if (metric === 'aqi') {
@@ -169,18 +189,24 @@ export function PlannerPage() {
     if (metric === 'cooking') {
       return [...cookingRows].sort((a, b) => b.solidBiomassPct - a.solidBiomassPct);
     }
-    return [...stateRows].sort((a, b) =>
-      metric === 'coverage'
-        ? toFiniteNumber(b.trust_weighted) - toFiniteNumber(a.trust_weighted)
-        : toFiniteNumber(b.gap_score) - toFiniteNumber(a.gap_score)
-    );
-  }, [stateRows, metric, aqiRows, cookingRows]);
+    return [...enrichedStateRows]
+      .filter((row) => metric !== 'risk' || row.copd_risk_score != null)
+      .sort((a, b) => {
+        if (metric === 'coverage') {
+          return toFiniteNumber(b.trust_weighted) - toFiniteNumber(a.trust_weighted);
+        }
+        if (metric === 'risk') {
+          return toFiniteNumber(b.copd_risk_score) - toFiniteNumber(a.copd_risk_score);
+        }
+        return toFiniteNumber(b.gap_score) - toFiniteNumber(a.gap_score);
+      });
+  }, [enrichedStateRows, metric, aqiRows, cookingRows]);
   const selectedStateRow = useMemo(
     () =>
       selectedState
-        ? stateRows.find((row) => normalizeStateKey(row.state) === normalizeStateKey(selectedState))
+        ? enrichedStateRows.find((row) => normalizeStateKey(row.state) === normalizeStateKey(selectedState))
         : undefined,
-    [selectedState, stateRows]
+    [selectedState, enrichedStateRows]
   );
 
   const k = kpis.data?.[0];
@@ -189,9 +215,11 @@ export function PlannerPage() {
       ? '--success'
       : metric === 'gap'
         ? '--destructive'
-        : metric === 'aqi'
-          ? '--chart-4'
-          : '--warning';
+        : metric === 'risk'
+          ? '--chart-5'
+          : metric === 'aqi'
+            ? '--chart-4'
+            : '--warning';
   const mapLoading =
     metric === 'aqi' ? aqiLoading : metric === 'cooking' ? cookingLoading : coverage.loading;
   const mapTitle =
@@ -199,38 +227,46 @@ export function PlannerPage() {
       ? 'Trust-weighted COPD-care coverage'
       : metric === 'gap'
         ? 'COPD care-gap risk by state'
-        : metric === 'aqi'
-          ? 'Average PM2.5 AQI by state'
-          : 'Household solid biomass fuel use by state';
+        : metric === 'risk'
+          ? 'COPD risk proxy by state'
+          : metric === 'aqi'
+            ? 'Average PM2.5 AQI by state'
+            : 'Household solid biomass fuel use by state';
   const mapLegend =
     metric === 'coverage'
       ? 'More trusted supply'
       : metric === 'gap'
         ? 'Higher care gap'
-        : metric === 'aqi'
-          ? 'Higher AQI (worse air)'
-          : 'Higher solid biomass use';
+        : metric === 'risk'
+          ? 'Higher COPD risk'
+          : metric === 'aqi'
+            ? 'Higher AQI (worse air)'
+            : 'Higher solid biomass use';
   const rankTitle =
     metric === 'coverage'
       ? 'Best COPD-care coverage'
       : metric === 'gap'
         ? 'Highest COPD care gaps'
-        : metric === 'aqi'
-          ? 'Highest average AQI'
-          : 'Highest solid biomass fuel use';
+        : metric === 'risk'
+          ? 'Highest COPD risk'
+          : metric === 'aqi'
+            ? 'Highest average AQI'
+            : 'Highest solid biomass fuel use';
   const noDataLabel =
     metric === 'aqi'
       ? 'No PM2.5 AQI data'
       : metric === 'cooking'
         ? 'No cooking fuel data'
-        : 'No facility evidence';
+        : metric === 'risk'
+          ? 'No COPD risk data'
+          : 'No facility evidence';
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
       {/* Controls */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Medical Desert Planner</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">COPD Intervention Planner</h2>
           <p className="text-sm text-muted-foreground">
             Where are the highest-risk gaps in care — and how confident are we they are real?
           </p>
@@ -283,10 +319,16 @@ export function PlannerPage() {
                 Care gaps
               </ToggleGroupItem>
               <ToggleGroupItem
+                value="risk"
+                className="px-3 py-2 text-sm text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                Risk
+              </ToggleGroupItem>
+              <ToggleGroupItem
                 value="aqi"
                 className="px-3 py-2 text-sm text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
-                AQI overlay
+                AQI
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="cooking"
@@ -301,9 +343,9 @@ export function PlannerPage() {
 
       <Alert>
         <AlertDescription>
-          COPD risk is estimated from household solid-fuel exposure and adult tobacco use in NFHS-5. Care capacity is
-          extracted from Unity Catalog facility specialties, procedures, equipment, descriptions, and capability
-          evidence. This is a planning proxy, not measured COPD prevalence.
+          COPD risk is estimated from state PM2.5 AQI, household solid-fuel exposure, and adult tobacco use. Care
+          capacity is extracted from Unity Catalog facility specialties, procedures, equipment, descriptions, and
+          capability evidence. This is a planning proxy, not measured COPD prevalence.
         </AlertDescription>
       </Alert>
 
@@ -325,8 +367,8 @@ export function PlannerPage() {
             />
             <KpiCard
               label="Avg COPD risk proxy"
-              value={`${formatFixed(k.avg_copd_risk)}/100`}
-              hint="solid fuel + tobacco"
+              value={avgCopdRisk == null ? '—' : `${formatFixed(avgCopdRisk)}/100`}
+              hint="AQI + solid fuel + tobacco"
             />
             <KpiCard
               label="Trust-weighted capacity"
@@ -393,15 +435,18 @@ export function PlannerPage() {
                         </span>
                       );
                     } else {
-                      const stateRow = row as (typeof stateRows)[number];
-                      sub = `${formatNumber(stateRow.n_facilities)} facilities`;
+                      const stateRow = row as (typeof enrichedStateRows)[number];
+                      sub =
+                        metric === 'risk'
+                          ? `AQI ${formatOptionalFixed(stateRow.avg_aqi)} · clean fuel ${pct(stateRow.clean_fuel_pct)}`
+                          : `${formatNumber(stateRow.n_facilities)} facilities`;
                       stat =
                         metric === 'coverage' ? (
                           <span className="rounded-lg border border-white/10 bg-black/25 px-2 py-1 text-sm font-semibold tabular-nums text-primary">
                             {formatFixed(stateRow.trust_weighted)}
                           </span>
                         ) : (
-                          <GapPill score={stateRow.gap_score} />
+                          <GapPill score={metric === 'risk' ? stateRow.copd_risk_score : stateRow.gap_score} />
                         );
                     }
                     return (
@@ -453,7 +498,9 @@ export function PlannerPage() {
               <StateActionPanel
                 state={selectedState}
                 capability={capability}
-                stateRow={selectedStateRow as Record<string, unknown> | undefined}
+                stateRow={selectedStateRow}
+                stateAqi={aqiByKey.get(normalizeStateKey(selectedState))?.avgAqi ?? null}
+                aqiBounds={aqiBounds}
                 onClose={() => setSelectedState(null)}
               />
             )}

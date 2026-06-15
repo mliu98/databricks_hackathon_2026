@@ -88,7 +88,7 @@ export function metricRows(s: Scenario): MetricRow[] {
   rows.push({
     label: 'COPD risk proxy',
     value: num(snap.copd_risk_score) == null ? 'Not measured' : `${formatFixed(num(snap.copd_risk_score)!)} / 100`,
-    meaning: 'Estimated respiratory-disease burden from household smoke exposure and adult tobacco use.',
+    meaning: 'Estimated respiratory-disease burden from ambient PM2.5 AQI, household smoke exposure, and adult tobacco use.',
   });
   rows.push({
     label: 'Matching facilities',

@@ -155,14 +155,7 @@ combined AS (
     n.women_tobacco_pct,
     n.men_tobacco_pct,
     n.child_ari_pct,
-    n.insurance_pct,
-    CASE
-      WHEN n.clean_fuel_pct IS NOT NULL
-       AND n.women_tobacco_pct IS NOT NULL
-       AND n.men_tobacco_pct IS NOT NULL
-      THEN 0.60 * (100 - n.clean_fuel_pct)
-        + 0.40 * ((n.women_tobacco_pct + n.men_tobacco_pct) / 2.0)
-    END AS copd_risk
+    n.insurance_pct
   FROM district_dim d
   LEFT JOIN dist_fac f ON d.district_key = f.district_key
   LEFT JOIN dist_catalog c ON d.district_key = c.district_key
@@ -202,16 +195,11 @@ SELECT
   ROUND((women_tobacco_pct + men_tobacco_pct) / 2.0, 1) AS adult_tobacco_pct,
   ROUND(child_ari_pct, 1) AS child_ari_pct,
   ROUND(insurance_pct, 1) AS insurance_pct,
-  ROUND(copd_risk, 1) AS copd_risk_score,
   CASE
-    WHEN copd_risk IS NOT NULL
-    THEN ROUND(copd_risk * (1 - LEAST(trust_weighted / 3.0, 1)), 1)
-  END AS gap_score,
-  CASE
-    WHEN copd_risk IS NULL OR catalog_records < 2 THEN 'low'
+    WHEN catalog_records < 2 THEN 'low'
     WHEN catalog_records >= 10 AND catalog_trust_weighted >= 2 THEN 'high'
     WHEN catalog_records >= 3 AND catalog_trust_weighted >= 0.5 THEN 'medium'
     ELSE 'low'
   END AS data_confidence
 FROM combined
-ORDER BY gap_score DESC, n_facilities DESC;
+ORDER BY trust_weighted ASC, n_facilities DESC;
