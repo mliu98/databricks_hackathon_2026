@@ -29,13 +29,16 @@ import { ConfidenceBadge, GapPill } from './StatBits';
 import { SaveScenarioDialog } from './SaveScenarioDialog';
 import { StateGenieChat } from './StateGenieChat';
 import { rankInterventions, type DistrictGapRow, type InterventionKind } from '../lib/interventions';
-import { formatFixed, formatNumber, toBoolean, toFiniteNumber } from '../lib/numbers';
+import { enrichDistrictCoverageRows, type AqiBounds } from '../lib/copdRisk';
+import { formatFixed, formatNumber, formatOptionalFixed, toBoolean, toFiniteNumber } from '../lib/numbers';
 import type { ScenarioSnapshot } from '../lib/scenarios';
 
 interface Props {
   state: string;
   capability: string;
   stateRow?: Record<string, unknown>;
+  stateAqi?: number | null;
+  aqiBounds?: AqiBounds | null;
   onClose: () => void;
 }
 
@@ -57,7 +60,7 @@ const capabilityBadges = (partner: Record<string, unknown>) =>
     toBoolean(partner.has_critical_care) && 'Critical care',
   ].filter(Boolean) as string[];
 
-export function StateActionPanel({ state, capability, stateRow, onClose }: Props) {
+export function StateActionPanel({ state, capability, stateRow, stateAqi, aqiBounds, onClose }: Props) {
   const districtParams = useMemo(
     () => ({ state: sql.string(state), capability: sql.string(capability) }),
     [state, capability]
@@ -65,7 +68,10 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
   const partnerParams = useMemo(() => ({ state: sql.string(state) }), [state]);
   const districts = useAnalyticsQuery('district_coverage', districtParams);
   const partners = useAnalyticsQuery('partner_candidates', partnerParams);
-  const rows = (districts.data ?? []) as DistrictGapRow[];
+  const rows = useMemo(
+    () => enrichDistrictCoverageRows((districts.data ?? []) as DistrictGapRow[], stateAqi, aqiBounds ?? null),
+    [districts.data, stateAqi, aqiBounds]
+  );
   const actions = rankInterventions(rows, capability);
   const [showGenie, setShowGenie] = useState(false);
 
@@ -113,7 +119,7 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
               <Metric
                 label="Risk proxy"
                 value={`${formatFixed(stateRow.copd_risk_score)}/100`}
-                description="Planning estimate from household solid-fuel exposure and adult tobacco use. It is not COPD prevalence."
+                description="Planning estimate from PM2.5 AQI, household solid-fuel exposure, and adult tobacco use. It is not COPD prevalence."
               />
               <Metric
                 label="Supply"
@@ -127,11 +133,14 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
               />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-[11px]">
-              <span title="Households not using clean cooking fuel; the 60% household-smoke component of the COPD risk proxy.">
+              <span title="State average PM2.5 AQI min-max normalized to 0–100; the 35% ambient-air component of the COPD risk proxy.">
+                Avg AQI <strong className="text-foreground">{formatOptionalFixed(stateRow.avg_aqi)}</strong>
+              </span>
+              <span title="Households not using clean cooking fuel; the 40% household-smoke component of the COPD risk proxy.">
                 Household smoke exposure{' '}
                 <strong className="text-foreground">{pctFromInverse(stateRow.clean_fuel_pct)}</strong>
               </span>
-              <span title="Average NFHS-5 tobacco use among women and men age 15+; the 40% tobacco component of the COPD risk proxy.">
+              <span title="Average NFHS-5 tobacco use among women and men age 15+; the 25% tobacco component of the COPD risk proxy.">
                 Adult tobacco <strong className="text-foreground">{pctValue(stateRow.adult_tobacco_pct)}</strong>
               </span>
               <ConfidenceBadge
@@ -237,8 +246,8 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
               </summary>
               <div className="mt-2 space-y-2 text-muted-foreground">
                 <p>
-                  <strong className="text-foreground">Risk:</strong> 60% solid-fuel exposure plus 40% average adult
-                  tobacco use from NFHS-5.
+                  <strong className="text-foreground">Risk:</strong> 35% min-max normalized PM2.5 AQI, 40% household
+                  solid-fuel exposure, and 25% average adult tobacco use.
                 </p>
                 <p>
                   <strong className="text-foreground">Supply:</strong> trust-weighted catalog records matching the

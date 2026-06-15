@@ -6,11 +6,11 @@ The analytical read path is Unity Catalog -> SQL Warehouse -> AppKit Analytics n
 
 The current COPD gap model combines:
 
-- NFHS-5 household solid-fuel exposure and adult tobacco use as a district risk proxy.
+- State PM2.5 AQI, NFHS-5 household solid-fuel exposure, and adult tobacco use in a weighted COPD risk proxy (35% / 40% / 25%).
 - Facility-text evidence for pulmonology, spirometry, oxygen, inhalers/nebulizers, pulmonary rehabilitation, and critical care.
 - Trust-weighted facility scarcity to distinguish likely care gaps from well-evidenced supply.
 
-It does not yet include ambient PM2.5, population normalization, or measured COPD prevalence.
+It does not yet include population normalization or measured COPD prevalence.
 
 **Enabled plugins:**
 - **Analytics** -- SQL query execution against Databricks SQL Warehouses

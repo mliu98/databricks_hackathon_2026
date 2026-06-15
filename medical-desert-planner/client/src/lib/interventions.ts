@@ -6,8 +6,10 @@ export interface DistrictGapRow {
   district: string;
   n_facilities: unknown;
   trust_weighted: unknown;
-  copd_risk_score: unknown;
-  gap_score: unknown;
+  // copd_risk_score and gap_score are no longer returned by SQL — they are
+  // added client-side by enrichDistrictCoverageRows (see lib/copdRisk).
+  copd_risk_score?: unknown;
+  gap_score?: unknown;
   data_confidence: string;
   catalog_records?: unknown;
   catalog_trust_weighted?: unknown;

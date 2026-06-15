@@ -23,7 +23,7 @@ All catalog `schema` = `databricks_virtue_foundation_dataset_dais_2026.virtue_fo
 | ----- | ---------------- | -------- |
 | `facilities` | One row per facility: `description`, `procedure`, `equipment`, `capability`, `specialties`, address, web-presence signals (`custom_logo_presence`, `affiliated_staff_presence`, `distinct_social_media_presence_count`, `officialWebsite`, `recency_of_page_update`), `numberDoctors`, `capacity`, `yearEstablished`, contacts | Supply, trust score, capability detection, partners |
 | `india_post_pincode_directory` | `pincode → statename, district` | Maps each facility to a state/district via its postcode |
-| `nfhs_5_district_health_indicators` | Survey indicators per district: clean cooking fuel %, women/men 15+ tobacco %, child ARI %, health-insurance % | The COPD **risk proxy** (need side) |
+| `nfhs_5_district_health_indicators` | Survey indicators per district: clean cooking fuel %, women/men 15+ tobacco %, child ARI %, health-insurance % | The solid-fuel + tobacco components of the COPD **risk proxy** (need side), plus context |
 
 Facilities are joined to geography on `try_cast(facilities.address_zipOrPostcode AS BIGINT) = pincode`. When a pincode maps to multiple localities, the most frequent `(statename, district)` for that pincode wins (`ROW_NUMBER() … ORDER BY COUNT(*) DESC`).
 
@@ -33,7 +33,7 @@ These are pre-processed at build time (`npm run build:client` runs the scripts) 
 
 | Source CSV | Build script | Output | Feeds |
 | ---------- | ------------ | ------ | ----- |
-| `data/aqi.csv` | [`scripts/build-aqi-data.mjs`](../scripts/build-aqi-data.mjs) | `client/public/data/state-aqi.json` | **AQI overlay** |
+| `data/aqi.csv` | [`scripts/build-aqi-data.mjs`](../scripts/build-aqi-data.mjs) | `client/public/data/state-aqi.json` | **AQI overlay** + the 35% ambient-air term of the risk proxy (§2d) |
 | `data/cooking.csv` | [`scripts/build-cooking-data.mjs`](../scripts/build-cooking-data.mjs) | `client/public/data/state-cooking.json` | **Cooking-fuel overlay** |
 
 ---
@@ -84,16 +84,20 @@ This same matching drives the capability dropdown counts, the map, the district 
 
 ### 2d. **COPD risk proxy** (need side) — *who is likely to get COPD*
 
-From NFHS-5 district indicators:
+Computed **client-side** in [`copdRisk.ts`](../client/src/lib/copdRisk.ts) by combining the AQI overlay (§1b) with the NFHS indicators (§1a). All three components are on a 0–100 scale and the weights sum to 1.0:
 
 ```
-copd_risk = 0.60 · (100 − clean_fuel_pct)
-          + 0.40 · ((women_tobacco_pct + men_tobacco_pct) / 2)
+copd_risk = 0.35 · aqi_norm
+          + 0.40 · (100 − clean_fuel_pct)
+          + 0.25 · ((women_tobacco_pct + men_tobacco_pct) / 2)
 ```
 
-- **60% household smoke exposure** = `100 − clean_fuel_pct` (households *not* using clean cooking fuel).
-- **40% adult tobacco** = the average of women-15+ and men-15+ tobacco-use rates.
-- It is `NULL` (shown as "not measured") unless all three inputs exist.
+- **35% ambient air** = `aqi_norm` = the state's average PM2.5 AQI **min–max normalized to 0–100** across all states: `100 · (avgAqi − minAqi) / (maxAqi − minAqi)`.
+- **40% household smoke exposure** = `100 − clean_fuel_pct` (households *not* using clean cooking fuel).
+- **25% adult tobacco** = the average of women-15+ and men-15+ tobacco-use rates.
+- It is `null` (shown as "not measured") unless the AQI value, AQI bounds, and all three NFHS inputs exist.
+
+> **This moved out of SQL.** The SQL queries (`state_coverage.sql`, `district_coverage.sql`, `national_kpis.sql`) no longer compute `copd_risk_score` or `gap_score`; they return the raw NFHS/supply columns, and the risk + gap are derived in the browser via `enrichStateCoverageRows` / `enrichDistrictCoverageRows`. Districts inherit their **state's** AQI value (AQI data is state-level).
 
 Two derived display values come straight out of this:
 - **Adult tobacco %** on screen = `(women_tobacco_pct + men_tobacco_pct) / 2`.
@@ -103,16 +107,18 @@ Two derived display values come straight out of this:
 
 ### 2e. **Gap score** — *need that is not met by trustworthy supply*
 
+Also computed client-side in [`copdRisk.ts`](../client/src/lib/copdRisk.ts):
+
 ```
 gap = copd_risk × (1 − min(trust_weighted / TARGET, 1))
 ```
 
 The gap is the risk scaled down by how close supply is to a "fully served" target:
 
-| Level | TARGET (trust-weighted facilities for "served") | File |
-| ----- | ----------------------------------------------- | ---- |
-| District | **3** | `district_coverage.sql` |
-| State | **20** | `state_coverage.sql` |
+| Level | TARGET (trust-weighted facilities for "served") | Function |
+| ----- | ----------------------------------------------- | -------- |
+| District | **3** | `computeDistrictGapScore` |
+| State | **20** | `computeStateGapScore` |
 
 So a district with ≥3 trust-weighted facilities has gap = 0 regardless of risk; a district with risk 50 and **zero** supply has gap = 50. Higher gap = more urgent unmet need.
 
@@ -121,7 +127,7 @@ So a district with ≥3 trust-weighted facilities has gap = 0 regardless of risk
 Confidence is deliberately separate from the gap, and is driven by *all* facility records in the region (`catalog_records` / `catalog_trust_weighted`), not just the capability-matched ones — a region we know a lot about is high-confidence even if it has few matching clinics.
 
 **District** (`district_coverage.sql`):
-- `low` if `copd_risk` is null **or** `catalog_records < 2`
+- `low` if `catalog_records < 2`
 - `high` if `catalog_records ≥ 10` **and** `catalog_trust_weighted ≥ 2`
 - `medium` if `catalog_records ≥ 3` **and** `catalog_trust_weighted ≥ 0.5`
 - otherwise `low`
@@ -139,7 +145,7 @@ Confidence is deliberately separate from the gap, and is driven by *all* facilit
 | ---- | ----- | --- |
 | **COPD-care facilities** | `n_facilities` | Count of capability-matched facilities nationwide. Sub-label "X mapped" = `geocoded` = rows with `latitude BETWEEN 6 AND 37` (inside India). |
 | **States with supply** | `n_states` | Distinct `statename` among matches. Sub-label = `n_districts` distinct districts. |
-| **Avg COPD risk proxy** | `avg_copd_risk` | The §2d formula applied to **nationwide** NFHS averages (`AVG` of each NFHS column across all districts). |
+| **Avg COPD risk proxy** | `avgCopdRisk` | The **mean of the per-state §2d risk scores** (`averageCopdRiskScore` over the AQI-enriched state rows), computed client-side — not the SQL `avg_copd_risk`. Hint: "AQI + solid fuel + tobacco". |
 | **Trust-weighted capacity** | `trust_weighted` | §2b nationwide. Sub-label = `avg_trust` = `AVG(trust_score)`. |
 
 ### 3b. The national map + ranking rail — `state_coverage.sql` (+ overlay JSON)
@@ -149,15 +155,16 @@ The map view toggle picks which value colors each state and orders the list:
 | Map view | Value per state | Source |
 | -------- | --------------- | ------ |
 | **Coverage** | `trust_weighted` (§2b) | SQL |
-| **Care gaps** | `gap_score` (§2e, state target 20) | SQL |
-| **AQI overlay** | `avgAqi` (§3e) | static JSON |
+| **Care gaps** | `gap_score` (§2e, state target 20) | SQL + client enrichment |
+| **Risk** | `copd_risk_score` (§2d) | SQL (NFHS) + AQI JSON, computed client-side |
+| **AQI** | `avgAqi` (§3e) | static JSON |
 | **Cooking fuel** | `solidBiomassPct` (§3f) | static JSON |
 
 **Choropleth color** ([`IndiaMap.tsx`](../client/src/components/IndiaMap.tsx)): each state's value is normalized `ratio = value / maxValue`, then the fill mixes the muted base with the layer's accent at `10 + ratio·90` percent — the +10 keeps the lowest values faintly visible. AQI/cooking show no action panel (they are context overlays).
 
 ### 3c. State action brief (click a state) — `district_coverage.sql` + `partner_candidates.sql`
 
-Top metric chips for the state come from the selected state's row (`copd_risk_score`, `n_facilities`, `gap_score` rendered as a colored pill, household smoke exposure, adult tobacco, confidence). The **gap pill color** ([`StatBits.tsx`](../client/src/components/StatBits.tsx)): `ratio = min(score/50, 1)` → red >0.66, amber >0.33, else green.
+Top metric chips for the state come from the selected state's **AQI-enriched** row (`copd_risk_score` and `gap_score` are added client-side per §2d/§2e), shown as: Risk proxy, Supply (`n_facilities`), Gap (a colored pill), and a sub-row of Avg AQI, household smoke exposure, adult tobacco, and confidence. The **gap pill color** ([`StatBits.tsx`](../client/src/components/StatBits.tsx)): `ratio = min(score/50, 1)` → red >0.66, amber >0.33, else green. District rows in the brief are enriched with the **state's** AQI value before ranking.
 
 **Top-3 interventions** ([`interventions.ts`](../client/src/lib/interventions.ts)) — districts are sorted by `gap_score` desc, then the app picks the first three with **distinct** action types using this decision tree (first match wins):
 

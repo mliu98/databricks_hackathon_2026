@@ -17,19 +17,19 @@ test('smoke test - landing page loads and navigates', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Close the gap' }).click();
   await expect(page).toHaveURL(/\/planner$/);
-  await expect(page.getByRole('heading', { name: 'Medical Desert Planner', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'COPD Intervention Planner', level: 2 })).toBeVisible();
 });
 
 test('smoke test - planner page loads', async ({ page }) => {
   await page.goto('/planner');
 
-  await expect(page.getByRole('heading', { name: 'Medical Desert Planner', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'COPD Intervention Planner', level: 2 })).toBeVisible();
   await expect(page.getByText('Where are the highest-risk gaps in care')).toBeVisible();
 
   // Controls render without any data dependency.
   await expect(page.getByText('Capability', { exact: true })).toBeVisible();
   await expect(page.getByText('Care gaps')).toBeVisible();
-  await expect(page.getByText('COPD risk is estimated from household solid-fuel exposure')).toBeVisible();
+  await expect(page.getByText('COPD risk is estimated from state PM2.5 AQI')).toBeVisible();
   await expect(page.getByText('COPD-care facilities')).toBeVisible();
 
   // Navigation.
