@@ -1,12 +1,6 @@
 import { createBrowserRouter, RouterProvider, NavLink, Outlet } from 'react-router';
 import { useState } from 'react';
-import {
-  Button,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@databricks/appkit-ui/react';
+import { Button, Sheet, SheetContent, SheetHeader, SheetTitle } from '@databricks/appkit-ui/react';
 import { Menu, Activity } from 'lucide-react';
 import { PlannerPage } from './pages/PlannerPage';
 import { ScenariosPage } from './pages/ScenariosPage';
@@ -24,7 +18,15 @@ const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 type NavLinkClassFn = (props: { isActive: boolean }) => string;
 
-function NavLinks({ className, linkClass, onClick }: { className?: string; linkClass: NavLinkClassFn; onClick?: () => void }) {
+function NavLinks({
+  className,
+  linkClass,
+  onClick,
+}: {
+  className?: string;
+  linkClass: NavLinkClassFn;
+  onClick?: () => void;
+}) {
   return (
     <nav className={className}>
       <NavLink to="/" end className={linkClass} onClick={onClick}>
@@ -41,8 +43,8 @@ function Layout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="flex items-center gap-4 border-b px-4 py-3 md:px-6">
+    <div className="dark flex min-h-screen flex-col bg-background">
+      <header className="sticky top-0 z-50 flex items-center gap-4 border-b border-white/10 bg-background/90 px-4 py-3 backdrop-blur-xl md:px-6">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Activity className="h-4 w-4" />
@@ -60,13 +62,17 @@ function Layout() {
               <SheetHeader>
                 <SheetTitle>Navigation</SheetTitle>
               </SheetHeader>
-              <NavLinks className="flex flex-col gap-1" linkClass={mobileNavLinkClass} onClick={() => setMobileNavOpen(false)} />
+              <NavLinks
+                className="flex flex-col gap-1"
+                linkClass={mobileNavLinkClass}
+                onClick={() => setMobileNavOpen(false)}
+              />
             </SheetContent>
           </Sheet>
         </div>
       </header>
 
-      <main className="flex-1 p-4 md:p-6">
+      <main className="flex-1 bg-[radial-gradient(circle_at_8%_15%,rgba(142,92,246,0.13),transparent_28%)] p-4 md:p-6">
         <Outlet />
       </main>
     </div>

@@ -98,7 +98,7 @@ export function PlannerPage() {
   const colorVar = metric === 'coverage' ? '--success' : '--destructive';
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-5">
       {/* Controls */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
@@ -184,17 +184,64 @@ export function PlannerPage() {
       )}
 
       {/* Map + ranking */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle>
+      <div className="grid grid-cols-1 overflow-hidden rounded-[32px] border border-white/10 bg-[#171719] shadow-2xl lg:grid-cols-[340px_minmax(0,1fr)]">
+        <Card className="order-2 rounded-none border-0 border-r border-white/10 bg-[#171719] shadow-none lg:order-1">
+          <CardHeader className="border-b border-white/10">
+            <CardTitle className="text-base">
+              {metric === 'coverage' ? 'Best COPD-care coverage' : 'Highest COPD care gaps'}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Select a state to open its action brief</p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="max-h-[660px] overflow-auto">
+              {coverage.loading
+                ? Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="mx-4 my-2 h-14" />)
+                : rankedRows.map((r, idx) => {
+                    const isSel =
+                      selectedState != null && normalizeStateKey(selectedState) === normalizeStateKey(r.state);
+                    return (
+                      <button
+                        key={r.state}
+                        onClick={() => setSelectedState(r.state)}
+                        className={`mx-3 my-1 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all hover:bg-white/5 ${
+                          isSel
+                            ? 'border-primary bg-primary/10 shadow-[0_0_24px_rgba(87,255,196,0.12)]'
+                            : 'border-transparent'
+                        }`}
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/8 text-xs font-semibold text-foreground">
+                          {idx + 1}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-foreground">{r.state}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {formatNumber(r.n_facilities)} facilities
+                          </span>
+                        </span>
+                        {metric === 'coverage' ? (
+                          <span className="rounded-lg border border-white/10 bg-black/25 px-2 py-1 text-sm font-semibold tabular-nums text-primary">
+                            {formatFixed(r.trust_weighted)}
+                          </span>
+                        ) : (
+                          <GapPill score={r.gap_score} />
+                        )}
+                      </button>
+                    );
+                  })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative order-1 rounded-none border-0 bg-[#202224] shadow-none lg:order-2">
+          <CardHeader className="absolute left-4 right-4 top-4 z-10 flex flex-row items-center justify-between gap-4 space-y-0 rounded-2xl border border-white/10 bg-black/60 px-4 py-3 backdrop-blur-xl">
+            <CardTitle className="text-sm lg:text-base">
               {metric === 'coverage' ? 'Trust-weighted COPD-care coverage' : 'COPD care-gap risk by state'}
             </CardTitle>
             <Legend colorVar={colorVar} label={metric === 'coverage' ? 'More trusted supply' : 'Higher care gap'} />
           </CardHeader>
-          <CardContent className="relative">
+          <CardContent className="relative p-0">
             {coverage.loading ? (
-              <Skeleton className="w-full" style={{ aspectRatio: '720 / 780' }} />
+              <Skeleton className="h-[660px] w-full" />
             ) : (
               <IndiaMap
                 data={mapData}
@@ -212,46 +259,6 @@ export function PlannerPage() {
                 onClose={() => setSelectedState(null)}
               />
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-base">
-              {metric === 'coverage' ? 'Best COPD-care coverage' : 'Highest COPD care gaps'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="max-h-[680px] overflow-auto">
-              {coverage.loading
-                ? Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="mx-4 my-2 h-10" />)
-                : rankedRows.map((r, idx) => {
-                    const isSel =
-                      selectedState != null && normalizeStateKey(selectedState) === normalizeStateKey(r.state);
-                    return (
-                      <button
-                        key={r.state}
-                        onClick={() => setSelectedState(r.state)}
-                        className={`flex w-full items-center gap-3 border-b px-4 py-2.5 text-left transition-colors hover:bg-muted ${isSel ? 'bg-muted' : ''}`}
-                      >
-                        <span className="w-5 text-xs tabular-nums text-muted-foreground">{idx + 1}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-foreground">{r.state}</span>
-                          <span className="block text-xs text-muted-foreground">
-                            {formatNumber(r.n_facilities)} facilities
-                          </span>
-                        </span>
-                        {metric === 'coverage' ? (
-                          <span className="text-sm font-semibold tabular-nums text-foreground">
-                            {formatFixed(r.trust_weighted)}
-                          </span>
-                        ) : (
-                          <GapPill score={r.gap_score} />
-                        )}
-                      </button>
-                    );
-                  })}
-            </div>
           </CardContent>
         </Card>
       </div>

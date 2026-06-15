@@ -56,7 +56,7 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
   const actions = rankInterventions(rows, capability);
 
   return (
-    <Card className="z-20 border-primary/40 bg-card/95 shadow-xl backdrop-blur lg:absolute lg:right-3 lg:top-3 lg:w-[390px]">
+    <Card className="z-20 rounded-[24px] border-white/10 bg-[#171719]/95 shadow-2xl backdrop-blur-xl lg:absolute lg:right-5 lg:top-20 lg:w-[390px]">
       <CardHeader className="space-y-2 p-4 pb-2">
         <div className="flex items-start justify-between gap-3">
           <div>
