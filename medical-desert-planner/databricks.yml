@@ -8,10 +8,12 @@ sync:
   include:
     - dist/**
     - client/dist/**
-  # Build-time-only inputs (large raw CSVs); the app serves the prebuilt JSON in
-  # client/dist, so these are not needed at runtime.
+  # Exclude only the single oversized raw CSV (29.7MB > the Apps 10MB per-file
+  # limit) by exact name, plus node_modules. DABs sync globs are not anchored, so
+  # a broad `data/**` would also drop client/public/data (the prebuilt JSON the
+  # app serves) — hence the exact path here.
   exclude:
-    - data/**
+    - data/aqi.csv
     - node_modules/**
 
 variables:
