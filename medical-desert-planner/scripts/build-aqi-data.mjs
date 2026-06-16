@@ -1,10 +1,18 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const csvPath = path.join(root, 'data/aqi.csv');
 const outPath = path.join(root, 'client/public/data/state-aqi.json');
+
+// The raw CSV is a local-only build input (excluded from deployment uploads; it
+// also exceeds the Databricks Apps per-file limit). When it is absent (e.g. on
+// the Databricks Apps build), keep the committed prebuilt JSON instead of failing.
+if (!existsSync(csvPath)) {
+  console.log(`Skipping AQI data build: ${path.relative(root, csvPath)} not found; using prebuilt JSON.`);
+  process.exit(0);
+}
 
 /** Parse one CSV line, respecting double-quoted fields. */
 function parseCsvLine(line) {

@@ -1,10 +1,18 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const csvPath = path.join(root, 'data/state-population.csv');
 const outPath = path.join(root, 'client/public/data/state-population.json');
+
+// The raw CSV is a local-only build input (excluded from deployment uploads).
+// When it is absent (e.g. on the Databricks Apps build), keep the committed
+// prebuilt JSON instead of failing the build.
+if (!existsSync(csvPath)) {
+  console.log(`Skipping population data build: ${path.relative(root, csvPath)} not found; using prebuilt JSON.`);
+  process.exit(0);
+}
 
 function parseCsvLine(line) {
   const fields = [];
