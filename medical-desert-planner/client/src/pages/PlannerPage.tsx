@@ -23,14 +23,14 @@ import { RegionDetail } from '../components/RegionDetail';
 import { StateActionPanel } from '../components/StateActionPanel';
 import { KpiCard, ConfidenceBadge, GapPill, pct } from '../components/StatBits';
 import { loadStateAqiDataset, stateAqiByKey, type StateAqiRow } from '../lib/aqi';
-import { loadStateCookingDataset, stateCookingByKey, type StateCookingRow } from '../lib/cooking';
+import { COPD_RISK_FORMULA_DESCRIPTION, enrichStateCoverageRows } from '../lib/copdRisk';
+import { loadStatePopulationDataset, statePopulationByKey } from '../lib/population';
 import { visibleAnalyticsError } from '../lib/analytics-query';
 import { normalizeStateKey } from '../lib/geo';
 import { formatFixed, formatNumber, formatOptionalFixed, toFiniteNumber } from '../lib/numbers';
 
-type Metric = 'coverage' | 'gap' | 'aqi' | 'cooking';
+type Metric = 'risk' | 'coverage' | 'gap' | 'aqi' | 'solidFuel';
 
-// Stable empty-array reference so memo deps don't change while data is loading.
 const EMPTY_ROWS: never[] = [];
 
 function humanize(token: string): string {
@@ -45,16 +45,20 @@ function humanize(token: string): string {
   return labels[token] ?? token.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
 }
 
+function nfhsSolidFuelPct(cleanFuelPct: unknown): number | null {
+  if (cleanFuelPct == null) return null;
+  return 100 - toFiniteNumber(cleanFuelPct);
+}
+
 export function PlannerPage() {
   const [capability, setCapability] = useState('all');
-  const [metric, setMetric] = useState<Metric>('coverage');
+  const [metric, setMetric] = useState<Metric>('risk');
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [aqiRows, setAqiRows] = useState<StateAqiRow[]>([]);
   const [aqiLoading, setAqiLoading] = useState(true);
   const [aqiError, setAqiError] = useState<string | null>(null);
-  const [cookingRows, setCookingRows] = useState<StateCookingRow[]>([]);
-  const [cookingLoading, setCookingLoading] = useState(true);
-  const [cookingError, setCookingError] = useState<string | null>(null);
+  const [populationRows, setPopulationRows] = useState<{ state: string; population: number }[]>([]);
+  const [populationLoading, setPopulationLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -79,19 +83,17 @@ export function PlannerPage() {
 
   useEffect(() => {
     let active = true;
-    loadStateCookingDataset()
+    loadStatePopulationDataset()
       .then((dataset) => {
         if (!active) return;
-        setCookingRows(dataset.states);
-        setCookingError(null);
+        setPopulationRows(dataset.states);
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (!active) return;
-        setCookingRows([]);
-        setCookingError(err instanceof Error ? err.message : 'Failed to load cooking fuel data');
+        setPopulationRows([]);
       })
       .finally(() => {
-        if (active) setCookingLoading(false);
+        if (active) setPopulationLoading(false);
       });
     return () => {
       active = false;
@@ -103,16 +105,23 @@ export function PlannerPage() {
 
   const specialties = useAnalyticsQuery('specialty_options', specialtyParams);
   const kpis = useAnalyticsQuery('national_kpis', capabilityParams);
-  const coverageEnabled = metric !== 'aqi' && metric !== 'cooking';
+  const coverageEnabled = metric !== 'aqi';
   const coverage = useAnalyticsQuery('state_coverage', capabilityParams, { autoStart: coverageEnabled });
 
-  const stateRows = coverage.data ?? EMPTY_ROWS;
+  const rawStateRows = coverage.data ?? EMPTY_ROWS;
   const coverageLoadError = visibleAnalyticsError(coverage.error, {
     loading: coverage.loading,
     data: coverage.data,
   });
   const aqiByKey = useMemo(() => stateAqiByKey(aqiRows), [aqiRows]);
-  const cookingByKey = useMemo(() => stateCookingByKey(cookingRows), [cookingRows]);
+  const populationByKey = useMemo(() => statePopulationByKey(populationRows), [populationRows]);
+
+  const enrichedStateRows = useMemo(() => {
+    if (!rawStateRows.length) return rawStateRows;
+    return enrichStateCoverageRows(rawStateRows, aqiByKey, populationByKey);
+  }, [rawStateRows, aqiByKey, populationByKey]);
+
+  const stateRows = enrichedStateRows;
 
   const { mapData, maxValue } = useMemo(() => {
     const m = new Map<string, StateDatum>();
@@ -131,50 +140,67 @@ export function PlannerPage() {
       return { mapData: m, maxValue: max };
     }
 
-    if (metric === 'cooking') {
-      for (const row of cookingRows) {
-        max = Math.max(max, row.solidBiomassPct);
-        m.set(normalizeStateKey(row.state), {
-          state: row.state,
-          value: row.solidBiomassPct,
-          valueLabel: `Solid biomass fuel ${formatFixed(row.solidBiomassPct, 1)}%`,
-          subLabel: `Firewood ${formatFixed(row.firewoodPct, 1)}% · other natural ${formatFixed(row.otherNaturalPct, 1)}%`,
-        });
-      }
-      return { mapData: m, maxValue: max };
-    }
-
     for (const r of stateRows) {
       const trustWeighted = toFiniteNumber(r.trust_weighted);
       const gapScore = toFiniteNumber(r.gap_score);
-      const value = metric === 'coverage' ? trustWeighted : gapScore;
+      const riskScore = toFiniteNumber(r.copd_risk_score);
+      const solidFuelPct = nfhsSolidFuelPct(r.clean_fuel_pct);
+      const stateKey = normalizeStateKey(r.state);
+      const aqiRow = aqiByKey.get(stateKey);
+
+      let value: number;
+      let valueLabel: string;
+      let subLabel: string;
+
+      if (metric === 'coverage') {
+        value = trustWeighted;
+        valueLabel = `${formatFixed(trustWeighted)} trust-weighted facilities`;
+        subLabel = `${formatNumber(r.n_facilities)} facilities · COPD risk ${formatOptionalFixed(r.copd_risk_score)} · clean fuel ${pct(r.clean_fuel_pct)}`;
+      } else if (metric === 'risk') {
+        value = riskScore;
+        valueLabel = `COPD risk ${formatOptionalFixed(r.copd_risk_score)}`;
+        subLabel = `${aqiRow ? `AQI ${formatFixed(aqiRow.avgAqi)} · ` : ''}solid fuel ${pct(solidFuelPct)} · tobacco ${pct(r.adult_tobacco_pct)}`;
+      } else if (metric === 'solidFuel') {
+        value = solidFuelPct ?? 0;
+        valueLabel = `Solid fuel use ${pct(solidFuelPct)}`;
+        subLabel = `NFHS clean fuel ${pct(r.clean_fuel_pct)} · tobacco ${pct(r.adult_tobacco_pct)}`;
+      } else {
+        value = gapScore;
+        valueLabel = `Gap score ${formatOptionalFixed(r.gap_score)}`;
+        subLabel = `${formatNumber(r.n_facilities)} facilities · COPD risk ${formatOptionalFixed(r.copd_risk_score)} · clean fuel ${pct(r.clean_fuel_pct)}`;
+      }
+
+      if (metric === 'solidFuel' && solidFuelPct == null) continue;
+
       max = Math.max(max, value);
-      m.set(normalizeStateKey(r.state), {
-        state: r.state,
-        value,
-        valueLabel:
-          metric === 'coverage'
-            ? `${formatFixed(trustWeighted)} trust-weighted facilities`
-            : `Gap score ${formatOptionalFixed(r.gap_score)}`,
-        subLabel: `${formatNumber(r.n_facilities)} facilities · COPD risk ${formatOptionalFixed(r.copd_risk_score)} · clean fuel ${pct(r.clean_fuel_pct)}`,
-      });
+      m.set(stateKey, { state: r.state, value, valueLabel, subLabel });
     }
     return { mapData: m, maxValue: max };
-  }, [stateRows, metric, aqiRows, cookingRows]);
+  }, [stateRows, metric, aqiRows, aqiByKey]);
 
   const rankedRows = useMemo(() => {
     if (metric === 'aqi') {
       return [...aqiRows].sort((a, b) => b.avgAqi - a.avgAqi);
     }
-    if (metric === 'cooking') {
-      return [...cookingRows].sort((a, b) => b.solidBiomassPct - a.solidBiomassPct);
+    if (metric === 'solidFuel') {
+      return [...stateRows]
+        .filter((row) => nfhsSolidFuelPct(row.clean_fuel_pct) != null)
+        .sort(
+          (a, b) =>
+            nfhsSolidFuelPct(b.clean_fuel_pct)! - nfhsSolidFuelPct(a.clean_fuel_pct)!
+        );
     }
-    return [...stateRows].sort((a, b) =>
-      metric === 'coverage'
-        ? toFiniteNumber(b.trust_weighted) - toFiniteNumber(a.trust_weighted)
-        : toFiniteNumber(b.gap_score) - toFiniteNumber(a.gap_score)
-    );
-  }, [stateRows, metric, aqiRows, cookingRows]);
+    return [...stateRows].sort((a, b) => {
+      if (metric === 'coverage') {
+        return toFiniteNumber(b.trust_weighted) - toFiniteNumber(a.trust_weighted);
+      }
+      if (metric === 'risk') {
+        return toFiniteNumber(b.copd_risk_score) - toFiniteNumber(a.copd_risk_score);
+      }
+      return toFiniteNumber(b.gap_score) - toFiniteNumber(a.gap_score);
+    });
+  }, [stateRows, metric, aqiRows]);
+
   const selectedStateRow = useMemo(
     () =>
       selectedState
@@ -184,53 +210,73 @@ export function PlannerPage() {
   );
 
   const k = kpis.data?.[0];
+  const populationWeightedAvgRisk = useMemo(() => {
+    let weightedSum = 0;
+    let totalPopulation = 0;
+    for (const row of stateRows) {
+      const risk = row.copd_risk_score;
+      const population =
+        populationByKey.get(normalizeStateKey(row.state))?.population ??
+        (row.population as number | undefined);
+      if (risk == null || population == null) continue;
+      weightedSum += toFiniteNumber(risk) * population;
+      totalPopulation += population;
+    }
+    return totalPopulation > 0 ? Math.round((weightedSum / totalPopulation) * 10) / 10 : null;
+  }, [stateRows, populationByKey]);
+
   const colorVar =
     metric === 'coverage'
       ? '--success'
       : metric === 'gap'
         ? '--destructive'
-        : metric === 'aqi'
-          ? '--chart-4'
-          : '--warning';
+        : metric === 'risk'
+          ? '--chart-5'
+          : metric === 'aqi'
+            ? '--chart-4'
+            : '--warning';
   const mapLoading =
-    metric === 'aqi' ? aqiLoading : metric === 'cooking' ? cookingLoading : coverage.loading;
-  const mapTitle =
-    metric === 'coverage'
-      ? 'Trust-weighted COPD-care coverage'
-      : metric === 'gap'
-        ? 'COPD care-gap risk by state'
-        : metric === 'aqi'
-          ? 'Average PM2.5 AQI by state'
-          : 'Household solid biomass fuel use by state';
-  const mapLegend =
-    metric === 'coverage'
-      ? 'More trusted supply'
-      : metric === 'gap'
-        ? 'Higher care gap'
-        : metric === 'aqi'
-          ? 'Higher AQI (worse air)'
-          : 'Higher solid biomass use';
-  const rankTitle =
-    metric === 'coverage'
-      ? 'Best COPD-care coverage'
-      : metric === 'gap'
-        ? 'Highest COPD care gaps'
-        : metric === 'aqi'
-          ? 'Highest average AQI'
-          : 'Highest solid biomass fuel use';
-  const noDataLabel =
     metric === 'aqi'
-      ? 'No PM2.5 AQI data'
-      : metric === 'cooking'
-        ? 'No cooking fuel data'
-        : 'No facility evidence';
+      ? aqiLoading
+      : coverage.loading || aqiLoading || populationLoading;
+  const mapTitle =
+    metric === 'risk'
+      ? 'COPD risk proxy by state'
+      : metric === 'coverage'
+        ? 'Trust-weighted COPD-care coverage'
+        : metric === 'gap'
+          ? 'COPD care-gap risk by state'
+          : metric === 'aqi'
+            ? 'Average PM2.5 AQI by state'
+            : 'Household solid-fuel use by state (NFHS-5)';
+  const mapLegend =
+    metric === 'risk'
+      ? 'Higher COPD risk'
+      : metric === 'coverage'
+        ? 'More trusted supply'
+        : metric === 'gap'
+          ? 'Higher care gap'
+          : metric === 'aqi'
+            ? 'Higher AQI (worse air)'
+            : 'Higher solid-fuel use';
+  const rankTitle =
+    metric === 'risk'
+      ? 'Highest COPD risk'
+      : metric === 'coverage'
+        ? 'Best COPD-care coverage'
+        : metric === 'gap'
+          ? 'Highest COPD care gaps'
+          : metric === 'aqi'
+            ? 'Highest average AQI'
+            : 'Highest solid-fuel use (NFHS)';
+  const noDataLabel =
+    metric === 'aqi' ? 'No PM2.5 AQI data' : metric === 'solidFuel' ? 'No NFHS fuel data' : 'No facility evidence';
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
-      {/* Controls */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Medical Desert Planner</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">COPD Care Planner</h2>
           <p className="text-sm text-muted-foreground">
             Where are the highest-risk gaps in care — and how confident are we they are real?
           </p>
@@ -250,11 +296,7 @@ export function PlannerPage() {
                   All COPD care
                 </SelectItem>
                 {(specialties.data ?? []).map((s) => (
-                  <SelectItem
-                    key={s.capability}
-                    value={s.capability}
-                    className="text-foreground"
-                  >
+                  <SelectItem key={s.capability} value={s.capability} className="text-foreground">
                     {humanize(s.capability)} ({formatNumber(s.facility_mentions)})
                   </SelectItem>
                 ))}
@@ -271,6 +313,12 @@ export function PlannerPage() {
               className="inline-flex rounded-md border border-input bg-card text-foreground"
             >
               <ToggleGroupItem
+                value="risk"
+                className="px-3 py-2 text-sm text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                Risk
+              </ToggleGroupItem>
+              <ToggleGroupItem
                 value="coverage"
                 className="px-3 py-2 text-sm text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
@@ -286,13 +334,13 @@ export function PlannerPage() {
                 value="aqi"
                 className="px-3 py-2 text-sm text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
-                AQI overlay
+                AQI
               </ToggleGroupItem>
               <ToggleGroupItem
-                value="cooking"
+                value="solidFuel"
                 className="px-3 py-2 text-sm text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
-                Cooking fuel
+                Solid fuel
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
@@ -301,51 +349,15 @@ export function PlannerPage() {
 
       <Alert>
         <AlertDescription>
-          COPD risk is estimated from household solid-fuel exposure and adult tobacco use in NFHS-5. Care capacity is
-          extracted from Unity Catalog facility specialties, procedures, equipment, descriptions, and capability
-          evidence. This is a planning proxy, not measured COPD prevalence.
+          COPD risk combines PM2.5 AQI, NFHS-5 household solid-fuel exposure, adult tobacco prevalence, and clinic
+          capacity stress weighted by population ({COPD_RISK_FORMULA_DESCRIPTION}). Care capacity is extracted from
+          Unity Catalog facility evidence. This is a planning proxy, not measured COPD prevalence.
         </AlertDescription>
       </Alert>
-
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {kpis.loading || !k ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />)
-        ) : (
-          <>
-            <KpiCard
-              label="COPD-care facilities"
-              value={formatNumber(k.n_facilities)}
-              hint={`${formatNumber(k.geocoded)} mapped`}
-            />
-            <KpiCard
-              label="States with supply"
-              value={formatNumber(k.n_states)}
-              hint={`${formatNumber(k.n_districts)} districts`}
-            />
-            <KpiCard
-              label="Avg COPD risk proxy"
-              value={`${formatFixed(k.avg_copd_risk)}/100`}
-              hint="solid fuel + tobacco"
-            />
-            <KpiCard
-              label="Trust-weighted capacity"
-              value={formatNumber(k.trust_weighted)}
-              hint={`${formatFixed(k.avg_trust)}/100 avg evidence trust`}
-            />
-          </>
-        )}
-      </div>
 
       {aqiError && metric === 'aqi' && (
         <Alert variant="destructive">
           <AlertDescription>Failed to load AQI data: {aqiError}</AlertDescription>
-        </Alert>
-      )}
-
-      {cookingError && metric === 'cooking' && (
-        <Alert variant="destructive">
-          <AlertDescription>Failed to load cooking fuel data: {cookingError}</AlertDescription>
         </Alert>
       )}
 
@@ -355,15 +367,12 @@ export function PlannerPage() {
         </Alert>
       )}
 
-      {/* Map + ranking */}
       <div className="grid grid-cols-1 overflow-hidden rounded-[32px] border border-white/10 bg-[#171719] shadow-2xl lg:grid-cols-[340px_minmax(0,1fr)]">
         <Card className="order-2 rounded-none border-0 border-r border-white/10 bg-[#171719] shadow-none lg:order-1">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-base">{rankTitle}</CardTitle>
             <p className="text-xs text-muted-foreground">
-              {metric === 'aqi' || metric === 'cooking'
-                ? 'Exposure overlay — select a state to highlight it'
-                : 'Select a state to open its action brief'}
+              {metric === 'aqi' ? 'Exposure overlay — select a state to highlight it' : 'Select a state to open its action brief'}
             </p>
           </CardHeader>
           <CardContent className="p-0">
@@ -384,21 +393,29 @@ export function PlannerPage() {
                           {formatFixed(aqiRow.avgAqi)}
                         </span>
                       );
-                    } else if (metric === 'cooking') {
-                      const cookingRow = row as StateCookingRow;
-                      sub = `Firewood ${formatFixed(cookingRow.firewoodPct, 1)}%`;
-                      stat = (
-                        <span className="rounded-lg border border-white/10 bg-black/25 px-2 py-1 text-sm font-semibold tabular-nums text-foreground">
-                          {formatFixed(cookingRow.solidBiomassPct, 1)}%
-                        </span>
-                      );
                     } else {
                       const stateRow = row as (typeof stateRows)[number];
-                      sub = `${formatNumber(stateRow.n_facilities)} facilities`;
+                      const stateKey = normalizeStateKey(name);
+                      const aqiRow = aqiByKey.get(stateKey);
+                      const solidFuel = nfhsSolidFuelPct(stateRow.clean_fuel_pct);
+                      sub =
+                        metric === 'risk'
+                          ? `${aqiRow ? `AQI ${formatFixed(aqiRow.avgAqi)} · ` : ''}${formatNumber(stateRow.n_facilities)} facilities`
+                          : metric === 'solidFuel'
+                            ? `Clean fuel ${pct(stateRow.clean_fuel_pct)}`
+                            : `${formatNumber(stateRow.n_facilities)} facilities`;
                       stat =
                         metric === 'coverage' ? (
                           <span className="rounded-lg border border-white/10 bg-black/25 px-2 py-1 text-sm font-semibold tabular-nums text-primary">
                             {formatFixed(stateRow.trust_weighted)}
+                          </span>
+                        ) : metric === 'risk' ? (
+                          <span className="rounded-lg border border-white/10 bg-black/25 px-2 py-1 text-sm font-semibold tabular-nums text-foreground">
+                            {formatOptionalFixed(stateRow.copd_risk_score)}
+                          </span>
+                        ) : metric === 'solidFuel' ? (
+                          <span className="rounded-lg border border-white/10 bg-black/25 px-2 py-1 text-sm font-semibold tabular-nums text-foreground">
+                            {pct(solidFuel)}
                           </span>
                         ) : (
                           <GapPill score={stateRow.gap_score} />
@@ -445,11 +462,9 @@ export function PlannerPage() {
                 selectedState={selectedState}
                 onSelect={(s) => setSelectedState(s)}
                 noDataLabel={noDataLabel}
-                aqiByKey={metric !== 'aqi' ? aqiByKey : undefined}
-                cookingByKey={metric !== 'cooking' ? cookingByKey : undefined}
               />
             )}
-            {selectedState && !mapLoading && metric !== 'aqi' && metric !== 'cooking' && (
+            {selectedState && !mapLoading && metric !== 'aqi' && (
               <StateActionPanel
                 state={selectedState}
                 capability={capability}
@@ -461,7 +476,39 @@ export function PlannerPage() {
         </Card>
       </div>
 
-      {/* Drill-down */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {kpis.loading || !k ? (
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />)
+        ) : (
+          <>
+            <KpiCard
+              label="COPD-care facilities"
+              value={formatNumber(k.n_facilities)}
+              hint={`${formatNumber(k.geocoded)} mapped`}
+            />
+            <KpiCard
+              label="States with supply"
+              value={formatNumber(k.n_states)}
+              hint={`${formatNumber(k.n_districts)} districts`}
+            />
+            <KpiCard
+              label="Avg COPD risk proxy"
+              value={
+                populationWeightedAvgRisk != null
+                  ? `${formatFixed(populationWeightedAvgRisk)}/100`
+                  : `${formatFixed(k.avg_copd_risk)}/100`
+              }
+              hint="population-weighted · AQI + NFHS fuel + tobacco + capacity"
+            />
+            <KpiCard
+              label="Trust-weighted capacity"
+              value={formatNumber(k.trust_weighted)}
+              hint={`${formatFixed(k.avg_trust)}/100 avg evidence trust`}
+            />
+          </>
+        )}
+      </div>
+
       {selectedState ? (
         <RegionDetail state={selectedState} capability={capability} onClose={() => setSelectedState(null)} />
       ) : (

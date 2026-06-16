@@ -11,25 +11,32 @@ let pageErrors: string[] = [];
 let failedRequests: string[] = [];
 
 test('smoke test - landing page loads and navigates', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/welcome');
 
-  await expect(page.getByRole('heading', { name: 'COPD Care-Gap Planner', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'COPD Care Planner', level: 1 })).toBeVisible();
 
   await page.getByRole('button', { name: 'Close the gap' }).click();
   await expect(page).toHaveURL(/\/planner$/);
-  await expect(page.getByRole('heading', { name: 'Medical Desert Planner', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'COPD Care Planner', level: 2 })).toBeVisible();
+});
+
+test('smoke test - home redirects to planner risk map', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/planner$/);
+  await expect(page.getByRole('button', { name: 'Risk', exact: true })).toHaveAttribute('data-state', 'on');
 });
 
 test('smoke test - planner page loads', async ({ page }) => {
   await page.goto('/planner');
 
-  await expect(page.getByRole('heading', { name: 'Medical Desert Planner', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'COPD Care Planner', level: 2 })).toBeVisible();
   await expect(page.getByText('Where are the highest-risk gaps in care')).toBeVisible();
 
   // Controls render without any data dependency.
   await expect(page.getByText('Capability', { exact: true })).toBeVisible();
   await expect(page.getByText('Care gaps')).toBeVisible();
-  await expect(page.getByText('COPD risk is estimated from household solid-fuel exposure')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Risk', exact: true })).toBeVisible();
+  await expect(page.getByText('COPD risk combines PM2.5 AQI, NFHS-5 household solid-fuel exposure')).toBeVisible();
   await expect(page.getByText('COPD-care facilities')).toBeVisible();
 
   // Navigation.

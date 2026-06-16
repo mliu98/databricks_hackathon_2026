@@ -75,7 +75,7 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
               <Metric
                 label="Risk proxy"
                 value={`${formatFixed(stateRow.copd_risk_score)}/100`}
-                description="Planning estimate from household solid-fuel exposure and adult tobacco use. It is not COPD prevalence."
+                description="Planning estimate from AQI, solid-fuel use, tobacco prevalence, and population-weighted clinic capacity stress. It is not COPD prevalence."
               />
               <Metric
                 label="Supply"
@@ -89,11 +89,11 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
               />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-[11px]">
-              <span title="Households not using clean cooking fuel; the 60% household-smoke component of the COPD risk proxy.">
+              <span title="Household solid-fuel exposure from NFHS-5; the solid-fuel component of the COPD risk proxy.">
                 Household smoke exposure{' '}
                 <strong className="text-foreground">{pctFromInverse(stateRow.clean_fuel_pct)}</strong>
               </span>
-              <span title="Average NFHS-5 tobacco use among women and men age 15+; the 40% tobacco component of the COPD risk proxy.">
+              <span title="Average NFHS-5 tobacco use among women and men age 15+; the tobacco component of the COPD risk proxy.">
                 Adult tobacco <strong className="text-foreground">{pctValue(stateRow.adult_tobacco_pct)}</strong>
               </span>
               <ConfidenceBadge
@@ -191,8 +191,8 @@ export function StateActionPanel({ state, capability, stateRow, onClose }: Props
           <summary className="cursor-pointer font-medium text-foreground">How gaps and actions are calculated</summary>
           <div className="mt-2 space-y-2 text-muted-foreground">
             <p>
-              <strong className="text-foreground">Risk:</strong> 60% solid-fuel exposure plus 40% average adult tobacco
-              use from NFHS-5.
+              <strong className="text-foreground">Risk:</strong> 0.25 × AQI + 0.30 × solid fuel + 0.20 × tobacco + 0.25
+              × clinic capacity stress (population-weighted) from NFHS-5, PM2.5 readings, and facility catalog evidence.
             </p>
             <p>
               <strong className="text-foreground">Supply:</strong> trust-weighted catalog records matching the selected

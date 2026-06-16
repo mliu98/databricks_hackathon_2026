@@ -1,0 +1,146 @@
+{
+  "generatedAt": "2026-06-16T17:52:32.930Z",
+  "method": "2011 Census of India state and union territory resident population",
+  "states": [
+    {
+      "state": "Uttar Pradesh",
+      "population": 199812341
+    },
+    {
+      "state": "Maharashtra",
+      "population": 112374333
+    },
+    {
+      "state": "Bihar",
+      "population": 104099452
+    },
+    {
+      "state": "West Bengal",
+      "population": 91276115
+    },
+    {
+      "state": "Madhya Pradesh",
+      "population": 72626809
+    },
+    {
+      "state": "Tamil Nadu",
+      "population": 72147030
+    },
+    {
+      "state": "Rajasthan",
+      "population": 68548437
+    },
+    {
+      "state": "Karnataka",
+      "population": 61095297
+    },
+    {
+      "state": "Gujarat",
+      "population": 60439192
+    },
+    {
+      "state": "Andhra Pradesh",
+      "population": 49386799
+    },
+    {
+      "state": "Odisha",
+      "population": 41947418
+    },
+    {
+      "state": "Telangana",
+      "population": 35003674
+    },
+    {
+      "state": "Kerala",
+      "population": 33406061
+    },
+    {
+      "state": "Jharkhand",
+      "population": 32988134
+    },
+    {
+      "state": "Assam",
+      "population": 31205576
+    },
+    {
+      "state": "Punjab",
+      "population": 27743338
+    },
+    {
+      "state": "Chhattisgarh",
+      "population": 25545198
+    },
+    {
+      "state": "Haryana",
+      "population": 25353081
+    },
+    {
+      "state": "Delhi",
+      "population": 16787941
+    },
+    {
+      "state": "Jammu and Kashmir",
+      "population": 12267013
+    },
+    {
+      "state": "Uttarakhand",
+      "population": 10086292
+    },
+    {
+      "state": "Himachal Pradesh",
+      "population": 6864602
+    },
+    {
+      "state": "Tripura",
+      "population": 3673917
+    },
+    {
+      "state": "Meghalaya",
+      "population": 2966889
+    },
+    {
+      "state": "Manipur",
+      "population": 2856014
+    },
+    {
+      "state": "Nagaland",
+      "population": 1978502
+    },
+    {
+      "state": "Goa",
+      "population": 1458545
+    },
+    {
+      "state": "Arunachal Pradesh",
+      "population": 1383727
+    },
+    {
+      "state": "Puducherry",
+      "population": 1247953
+    },
+    {
+      "state": "Mizoram",
+      "population": 1097206
+    },
+    {
+      "state": "Chandigarh",
+      "population": 1055450
+    },
+    {
+      "state": "Sikkim",
+      "population": 610577
+    },
+    {
+      "state": "Dadra and Nagar Haveli and Daman and Diu",
+      "population": 586956
+    },
+    {
+      "state": "Andaman and Nicobar Islands",
+      "population": 380581
+    },
+    {
+      "state": "Ladakh",
+      "population": 274289
+    }
+  ]
+}

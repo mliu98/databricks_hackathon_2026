@@ -127,6 +127,54 @@ nfhs AS (
   FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.nfhs_5_district_health_indicators
   GROUP BY 1, 2
 ),
+state_pop AS (
+  SELECT * FROM (
+    SELECT 'ANDHRAPRADESH' AS state_key, 49386799 AS population UNION ALL
+    SELECT 'ARUNACHALPRADESH', 1383727 UNION ALL
+    SELECT 'ASSAM', 31205576 UNION ALL
+    SELECT 'BIHAR', 104099452 UNION ALL
+    SELECT 'CHHATTISGARH', 25545198 UNION ALL
+    SELECT 'GOA', 1458545 UNION ALL
+    SELECT 'GUJARAT', 60439192 UNION ALL
+    SELECT 'HARYANA', 25353081 UNION ALL
+    SELECT 'HIMACHALPRADESH', 6864602 UNION ALL
+    SELECT 'JAMMUANDKASHMIR', 12267013 UNION ALL
+    SELECT 'JHARKHAND', 32988134 UNION ALL
+    SELECT 'KARNATAKA', 61095297 UNION ALL
+    SELECT 'KERALA', 33406061 UNION ALL
+    SELECT 'MADHYAPRADESH', 72626809 UNION ALL
+    SELECT 'MAHARASHTRA', 112374333 UNION ALL
+    SELECT 'MANIPUR', 2856014 UNION ALL
+    SELECT 'MEGHALAYA', 2966889 UNION ALL
+    SELECT 'MIZORAM', 1097206 UNION ALL
+    SELECT 'NAGALAND', 1978502 UNION ALL
+    SELECT 'ODISHA', 41947418 UNION ALL
+    SELECT 'PUNJAB', 27743338 UNION ALL
+    SELECT 'RAJASTHAN', 68548437 UNION ALL
+    SELECT 'SIKKIM', 610577 UNION ALL
+    SELECT 'TAMILNADU', 72147030 UNION ALL
+    SELECT 'TELANGANA', 35003674 UNION ALL
+    SELECT 'TRIPURA', 3673917 UNION ALL
+    SELECT 'UTTARPRADESH', 199812341 UNION ALL
+    SELECT 'UTTARAKHAND', 10086292 UNION ALL
+    SELECT 'WESTBENGAL', 91276115 UNION ALL
+    SELECT 'ANDAMANANDNICOBARISLANDS', 380581 UNION ALL
+    SELECT 'CHANDIGARH', 1055450 UNION ALL
+    SELECT 'DADRAANDNAGARHAVELIANDDAMANANDDIU', 586956 UNION ALL
+    SELECT 'DELHI', 16787941 UNION ALL
+    SELECT 'LADAKH', 274289 UNION ALL
+    SELECT 'PUDUCHERRY', 1247953
+  )
+),
+district_pop AS (
+  SELECT
+    d.district_key,
+    sp.population / COUNT(*) AS estimated_population
+  FROM district_dim d
+  JOIN state_pop sp
+    ON regexp_replace(UPPER(d.statename), '[^A-Z]', '') = sp.state_key
+  GROUP BY d.district_key, sp.population
+),
 combined AS (
   SELECT
     INITCAP(d.district) AS district,
@@ -151,25 +199,81 @@ combined AS (
     COALESCE(f.n_critical_care, 0) AS n_critical_care,
     COALESCE(cs.n_cities_with_supply, 0) AS n_cities_with_supply,
     COALESCE(cs.largest_city_facilities, 0) AS largest_city_facilities,
+    dp.estimated_population,
     n.clean_fuel_pct,
     n.women_tobacco_pct,
     n.men_tobacco_pct,
     n.child_ari_pct,
     n.insurance_pct,
     CASE
+      WHEN dp.estimated_population > 0
+      THEN (
+        (COALESCE(f.trust_weighted, 0) + COALESCE(f.total_reported_capacity, 0) / 1000.0)
+        * 1000000.0
+      ) / dp.estimated_population
+    END AS capacity_per_million,
+    CASE
       WHEN n.clean_fuel_pct IS NOT NULL
-       AND n.women_tobacco_pct IS NOT NULL
-       AND n.men_tobacco_pct IS NOT NULL
-      THEN 0.60 * (100 - n.clean_fuel_pct)
-        + 0.40 * ((n.women_tobacco_pct + n.men_tobacco_pct) / 2.0)
-    END AS copd_risk
+      THEN 100.0 - n.clean_fuel_pct
+    END AS solid_fuel_pct,
+    CASE
+      WHEN n.women_tobacco_pct IS NOT NULL AND n.men_tobacco_pct IS NOT NULL
+      THEN (n.women_tobacco_pct + n.men_tobacco_pct) / 2.0
+    END AS adult_tobacco_pct
   FROM district_dim d
   LEFT JOIN dist_fac f ON d.district_key = f.district_key
   LEFT JOIN dist_catalog c ON d.district_key = c.district_key
   LEFT JOIN city_summary cs ON d.district_key = cs.district_key
+  LEFT JOIN district_pop dp ON d.district_key = dp.district_key
   LEFT JOIN nfhs n
     ON d.district_key = n.district_key
    AND regexp_replace(regexp_replace(regexp_replace(UPPER(d.statename), '[^A-Z]', ''), '^(THE|NCTOF)', ''), 'MAHARASTRA', 'MAHARASHTRA') = n.state_key
+),
+scored AS (
+  SELECT
+    *,
+    MIN(capacity_per_million) OVER () AS min_capacity_per_million,
+    MAX(capacity_per_million) OVER () AS max_capacity_per_million
+  FROM combined
+),
+with_stress AS (
+  SELECT
+    *,
+    CASE
+      WHEN capacity_per_million IS NOT NULL
+       AND max_capacity_per_million > min_capacity_per_million
+      THEN 100.0 * (
+        1.0 - (capacity_per_million - min_capacity_per_million)
+          / (max_capacity_per_million - min_capacity_per_million)
+      )
+      WHEN capacity_per_million IS NOT NULL
+      THEN 50.0
+    END AS capacity_stress
+  FROM scored
+),
+risked AS (
+  SELECT
+    *,
+    CASE
+      WHEN solid_fuel_pct IS NOT NULL
+       AND adult_tobacco_pct IS NOT NULL
+       AND capacity_stress IS NOT NULL
+      THEN (
+          0.30 * solid_fuel_pct
+        + 0.20 * adult_tobacco_pct
+        + 0.25 * capacity_stress
+      ) / 0.75
+      WHEN solid_fuel_pct IS NOT NULL AND adult_tobacco_pct IS NOT NULL
+      THEN (0.30 * solid_fuel_pct + 0.20 * adult_tobacco_pct) / 0.50
+      WHEN solid_fuel_pct IS NOT NULL AND capacity_stress IS NOT NULL
+      THEN (0.30 * solid_fuel_pct + 0.25 * capacity_stress) / 0.55
+      WHEN adult_tobacco_pct IS NOT NULL AND capacity_stress IS NOT NULL
+      THEN (0.20 * adult_tobacco_pct + 0.25 * capacity_stress) / 0.45
+      WHEN solid_fuel_pct IS NOT NULL THEN solid_fuel_pct
+      WHEN adult_tobacco_pct IS NOT NULL THEN adult_tobacco_pct
+      WHEN capacity_stress IS NOT NULL THEN capacity_stress
+    END AS copd_risk
+  FROM with_stress
 )
 SELECT
   district,
@@ -199,9 +303,10 @@ SELECT
   ROUND(clean_fuel_pct, 1) AS clean_fuel_pct,
   ROUND(women_tobacco_pct, 1) AS women_tobacco_pct,
   ROUND(men_tobacco_pct, 1) AS men_tobacco_pct,
-  ROUND((women_tobacco_pct + men_tobacco_pct) / 2.0, 1) AS adult_tobacco_pct,
+  ROUND(adult_tobacco_pct, 1) AS adult_tobacco_pct,
   ROUND(child_ari_pct, 1) AS child_ari_pct,
   ROUND(insurance_pct, 1) AS insurance_pct,
+  ROUND(estimated_population, 0) AS estimated_population,
   ROUND(copd_risk, 1) AS copd_risk_score,
   CASE
     WHEN copd_risk IS NOT NULL
@@ -213,5 +318,5 @@ SELECT
     WHEN catalog_records >= 3 AND catalog_trust_weighted >= 0.5 THEN 'medium'
     ELSE 'low'
   END AS data_confidence
-FROM combined
+FROM risked
 ORDER BY gap_score DESC, n_facilities DESC;

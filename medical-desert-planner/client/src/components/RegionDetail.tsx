@@ -130,8 +130,8 @@ export function RegionDetail({ state, capability, onClose }: Props) {
             <summary className="cursor-pointer font-medium text-foreground">What these district metrics mean</summary>
             <div className="mt-2 grid gap-2 text-muted-foreground md:grid-cols-2">
               <p>
-                <strong className="text-foreground">COPD risk:</strong> planning proxy from solid-fuel exposure and
-                adult tobacco use; not diagnosed prevalence.
+                <strong className="text-foreground">COPD risk:</strong> planning proxy from AQI, solid-fuel use,
+                tobacco prevalence, and population-weighted clinic capacity; not diagnosed prevalence.
               </p>
               <p>
                 <strong className="text-foreground">Trust-weighted supply:</strong> matching facilities discounted when
