@@ -8,6 +8,11 @@ sync:
   include:
     - dist/**
     - client/dist/**
+  # Build-time-only inputs (large raw CSVs); the app serves the prebuilt JSON in
+  # client/dist, so these are not needed at runtime.
+  exclude:
+    - data/**
+    - node_modules/**
 
 variables:
   sql_warehouse_id:
