@@ -10,7 +10,7 @@ export function LandingPage() {
       {/* Background photograph */}
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('/img/bg_img.jpg')" }}
+        style={{ backgroundImage: "url('/img/cloudy-blue-sky.jpg')" }}
         aria-hidden
       />
       {/* Dark + accent wash to keep the glass legible and on-brand */}
@@ -18,7 +18,7 @@ export function LandingPage() {
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 50% 35%, rgba(87,255,196,0.10), transparent 45%), linear-gradient(180deg, rgba(10,10,12,0.72) 0%, rgba(10,10,12,0.55) 45%, rgba(10,10,12,0.82) 100%)',
+            'radial-gradient(circle at 50% 35%, rgba(87,255,196,0.08), transparent 45%), linear-gradient(180deg, rgba(10,10,12,0.45) 0%, rgba(10,10,12,0.35) 45%, rgba(10,10,12,0.55) 100%)',
         }}
         aria-hidden
       />
@@ -29,17 +29,16 @@ export function LandingPage() {
           {/* Logo, centered */}
           <div className="mx-auto mb-8 flex h-28 w-28 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] shadow-inner backdrop-blur-xl">
             <img
-              src="/img/high-resolution-color-logo.png"
-              alt="COPD Care-Gap Planner logo"
+              src="/img/indian-flag.svg"
+              alt="Indian flag"
               className="h-20 w-20 object-contain"
-              style={{ filter: 'brightness(0) invert(1)' }}
             />
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">COPD Care-Gap Planner</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">COPD Care Planner</h1>
           <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-white/70 sm:text-base">
-            Find where India&apos;s highest-risk gaps in respiratory care are — and how confident we are they are real —
-            so limited resources reach the people who need them most.
+            Find where India&apos;s highest-risk gaps in respiratory care are, how confident we are they are real, and
+            where care interventions can help limited resources reach the people who need them most.
           </p>
 
           <Button
@@ -51,7 +50,7 @@ export function LandingPage() {
             <ArrowRight className="h-5 w-5" />
           </Button>
 
-          <p className="mt-6 text-xs text-white/45">Track 2 · Medical Desert Planner · Built on Databricks</p>
+          <p className="mt-6 text-xs text-white/45">Track 2 · COPD Care Planner · Built on Databricks</p>
         </div>
       </div>
     </div>

@@ -70,6 +70,12 @@ declare module "@databricks/appkit-ui/react" {
           child_ari_pct: number;
           /** @sqlType DOUBLE */
           insurance_pct: number;
+          /** @sqlType DOUBLE */
+          estimated_population: number;
+          /** @sqlType DOUBLE */
+          copd_risk_score: number;
+          /** @sqlType DOUBLE */
+          gap_score: number;
           /** @sqlType STRING */
           data_confidence: string;
         }>;
@@ -148,6 +154,8 @@ declare module "@databricks/appkit-ui/react" {
           trust_weighted: number;
           /** @sqlType BIGINT */
           geocoded: number;
+          /** @sqlType DOUBLE */
+          avg_copd_risk: number;
         }>;
       };
     partner_candidates: {
@@ -214,6 +222,12 @@ declare module "@databricks/appkit-ui/react" {
           avg_trust: number;
           /** @sqlType BIGINT */
           geocoded: number;
+          /** @sqlType BIGINT */
+          n_with_capacity: number;
+          /** @sqlType DOUBLE */
+          total_reported_capacity: number;
+          /** @sqlType INT */
+          population: number;
           /** @sqlType DOUBLE */
           clean_fuel_pct: number;
           /** @sqlType DOUBLE */
@@ -226,6 +240,10 @@ declare module "@databricks/appkit-ui/react" {
           child_ari_pct: number;
           /** @sqlType DOUBLE */
           insurance_pct: number;
+          /** @sqlType DOUBLE */
+          copd_risk_score: number;
+          /** @sqlType DOUBLE */
+          gap_score: number;
           /** @sqlType STRING */
           data_confidence: string;
         }>;

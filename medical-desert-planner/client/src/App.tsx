@@ -1,39 +1,23 @@
-import { createBrowserRouter, RouterProvider, NavLink, Outlet } from 'react-router';
-import { useState } from 'react';
-import { Button, Sheet, SheetContent, SheetHeader, SheetTitle } from '@databricks/appkit-ui/react';
-import { Menu } from 'lucide-react';
+import { createBrowserRouter, RouterProvider, NavLink, Outlet, Navigate } from 'react-router';
 import { PlannerPage } from './pages/PlannerPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { LandingPage } from './pages/LandingPage';
 import { ErrorBoundary, RouteErrorPage } from './ErrorBoundary';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-    isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-  }`;
-
-const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-    isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+  `flex flex-1 items-center justify-center px-4 py-3 text-sm font-medium transition-colors ${
+    isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
   }`;
 
 type NavLinkClassFn = (props: { isActive: boolean }) => string;
 
-function NavLinks({
-  className,
-  linkClass,
-  onClick,
-}: {
-  className?: string;
-  linkClass: NavLinkClassFn;
-  onClick?: () => void;
-}) {
+function NavLinks({ linkClass }: { linkClass: NavLinkClassFn }) {
   return (
-    <nav className={className}>
-      <NavLink to="/planner" end className={linkClass} onClick={onClick}>
+    <nav className="flex w-full">
+      <NavLink to="/planner" end className={linkClass}>
         Planner
       </NavLink>
-      <NavLink to="/scenarios" className={linkClass} onClick={onClick}>
+      <NavLink to="/scenarios" className={linkClass}>
         Saved scenarios
       </NavLink>
     </nav>
@@ -41,49 +25,22 @@ function NavLinks({
 }
 
 function Layout() {
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
   return (
     <div className="dark flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-50 flex items-center gap-4 border-b border-white/10 bg-background/90 px-4 py-3 backdrop-blur-xl md:px-6">
-        <NavLink to="/" className="flex items-center gap-3" aria-label="Go to landing page">
-          <img
-            src="/img/high-resolution-color-logo.png"
-            alt="Medical Desert Planner logo"
-            className="h-20 w-auto"
-          />
-          <span className="sr-only">Medical Desert Planner</span>
-        </NavLink>
-        <NavLinks className="hidden gap-1 md:flex" linkClass={navLinkClass} />
-        <div className="ml-auto md:hidden">
-          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <Button variant="ghost" size="icon" onClick={() => setMobileNavOpen(true)}>
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Open navigation</span>
-            </Button>
-            <SheetContent side="left">
-              <SheetHeader>
-                <SheetTitle>Navigation</SheetTitle>
-              </SheetHeader>
-              <NavLinks
-                className="flex flex-col gap-1"
-                linkClass={mobileNavLinkClass}
-                onClick={() => setMobileNavOpen(false)}
-              />
-            </SheetContent>
-          </Sheet>
-        </div>
-      </header>
-
-      <main className="flex-1 bg-[radial-gradient(circle_at_8%_15%,rgba(142,92,246,0.13),transparent_28%)] p-4 md:p-6">
+      <main className="flex-1 bg-[radial-gradient(circle_at_8%_15%,rgba(142,92,246,0.13),transparent_28%)] p-4 pb-24 md:p-6 md:pb-24">
         <Outlet />
       </main>
+
+      <footer className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-background/90 backdrop-blur-xl">
+        <NavLinks linkClass={navLinkClass} />
+      </footer>
     </div>
   );
 }
 
 const router = createBrowserRouter([
-  { path: '/', element: <LandingPage />, errorElement: <RouteErrorPage /> },
+  { path: '/', element: <Navigate to="/planner" replace />, errorElement: <RouteErrorPage /> },
+  { path: '/welcome', element: <LandingPage />, errorElement: <RouteErrorPage /> },
   {
     element: <Layout />,
     errorElement: <RouteErrorPage />,

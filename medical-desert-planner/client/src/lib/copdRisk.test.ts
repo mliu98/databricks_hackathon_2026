@@ -1,99 +1,96 @@
 import { describe, expect, it } from 'vitest';
 import {
-  averageCopdRiskScore,
-  computeCopdRiskFromNfhs,
-  computeCopdRiskProxy,
-  computeDistrictGapScore,
-  computeStateGapScore,
-  enrichDistrictCoverageRow,
-  enrichStateCoverageRow,
-  normalizeAqi,
-  normalizeSolidFuel,
-  normalizeTobacco,
+  buildRiskNormBounds,
+  capacityPerMillion,
+  computeCopdRiskScore,
+  COPD_RISK_WEIGHTS,
+  solidFuelExposure,
+  tobaccoPrevalence,
 } from './copdRisk';
 
-describe('copdRisk normalization', () => {
-  it('min-max normalizes AQI to 0–100', () => {
-    expect(normalizeAqi(62, 62, 234)).toBe(0);
-    expect(normalizeAqi(234, 62, 234)).toBeCloseTo(100);
-    expect(normalizeAqi(148, 62, 234)).toBeCloseTo(50);
-  });
-
-  it('derives solid-fuel and tobacco norms from NFHS percentages', () => {
-    expect(normalizeSolidFuel(40)).toBe(60);
-    expect(normalizeTobacco(20, 40)).toBe(30);
+describe('solidFuelExposure', () => {
+  it('derives solid fuel share from NFHS clean fuel percentage', () => {
+    expect(solidFuelExposure({ cleanFuelPct: 80 })).toBe(20);
   });
 });
 
-describe('computeCopdRiskProxy', () => {
-  it('applies 35/40/25 weights on normalized inputs', () => {
-    const score = computeCopdRiskProxy({
-      avgAqi: 234,
-      minAqi: 62,
-      maxAqi: 234,
-      cleanFuelPct: 40,
-      womenTobaccoPct: 20,
-      menTobaccoPct: 40,
+describe('tobaccoPrevalence', () => {
+  it('uses adult average when provided', () => {
+    expect(tobaccoPrevalence({ adultTobaccoPct: 33 })).toBe(33);
+  });
+
+  it('averages women and men prevalence', () => {
+    expect(tobaccoPrevalence({ womenTobaccoPct: 20, menTobaccoPct: 40 })).toBe(30);
+  });
+});
+
+describe('capacityPerMillion', () => {
+  it('weights clinic capacity by population', () => {
+    const perMillion = capacityPerMillion({
+      trustWeighted: 4,
+      totalReportedCapacity: 2000,
+      population: 1_000_000,
     });
-
-    expect(score).toBeCloseTo(0.35 * 100 + 0.4 * 60 + 0.25 * 30);
+    expect(perMillion).toBe(6);
   });
 });
 
-describe('coverage enrichment', () => {
-  const bounds = { minAqi: 62, maxAqi: 234 };
-  const aqiByKey = new Map([
-    [
-      'maharashtra',
-      { state: 'Maharashtra', avgAqi: 138.7, readingCount: 10, status: 'Moderate' },
-    ],
+describe('computeCopdRiskScore', () => {
+  const bounds = buildRiskNormBounds([
+    { avgAqi: 60, trustWeighted: 1, population: 1_000_000 },
+    { avgAqi: 240, trustWeighted: 10, population: 1_000_000 },
   ]);
 
-  it('enriches state rows with local AQI and derived scores', () => {
-    const enriched = enrichStateCoverageRow(
+  it('combines all four weighted components', () => {
+    const score = computeCopdRiskScore(
       {
-        state: 'Maharashtra',
-        trust_weighted: 4,
-        clean_fuel_pct: 40,
-        women_tobacco_pct: 20,
-        men_tobacco_pct: 40,
+        avgAqi: 240,
+        cleanFuelPct: 50,
+        womenTobaccoPct: 20,
+        menTobaccoPct: 40,
+        trustWeighted: 1,
+        totalReportedCapacity: 0,
+        population: 1_000_000,
       },
-      aqiByKey,
       bounds
     );
 
-    expect(enriched.avg_aqi).toBe(138.7);
-    expect(enriched.copd_risk_score).not.toBeNull();
-    expect(enriched.gap_score).toBe(computeStateGapScore(enriched.copd_risk_score!, 4));
+    expect(score).not.toBeNull();
+    expect(score!).toBeGreaterThan(50);
   });
 
-  it('enriches district rows with state-level AQI', () => {
-    const enriched = enrichDistrictCoverageRow(
+  it('reweights when AQI is missing', () => {
+    const withAqi = computeCopdRiskScore(
       {
-        trust_weighted: 1,
-        clean_fuel_pct: 40,
-        women_tobacco_pct: 20,
-        men_tobacco_pct: 40,
+        avgAqi: 200,
+        cleanFuelPct: 40,
+        adultTobaccoPct: 30,
+        trustWeighted: 2,
+        population: 1_000_000,
       },
-      138.7,
+      bounds
+    );
+    const withoutAqi = computeCopdRiskScore(
+      {
+        cleanFuelPct: 40,
+        adultTobaccoPct: 30,
+        trustWeighted: 2,
+        population: 1_000_000,
+      },
       bounds
     );
 
-    expect(enriched.avg_aqi).toBe(138.7);
-    expect(enriched.gap_score).toBe(computeDistrictGapScore(enriched.copd_risk_score!, 1));
+    expect(withAqi).not.toBeNull();
+    expect(withoutAqi).not.toBeNull();
+    expect(withAqi!).not.toBe(withoutAqi!);
   });
 
-  it('returns null risk when NFHS inputs are missing', () => {
-    expect(computeCopdRiskFromNfhs({}, 138.7, bounds)).toBeNull();
-  });
-
-  it('averages enriched COPD risk scores', () => {
-    expect(
-      averageCopdRiskScore([
-        { copd_risk_score: 50 },
-        { copd_risk_score: 70 },
-        { copd_risk_score: null },
-      ])
-    ).toBe(60);
+  it('weights sum to one', () => {
+    const total =
+      COPD_RISK_WEIGHTS.aqi +
+      COPD_RISK_WEIGHTS.solidFuel +
+      COPD_RISK_WEIGHTS.tobacco +
+      COPD_RISK_WEIGHTS.capacityStress;
+    expect(total).toBe(1);
   });
 });

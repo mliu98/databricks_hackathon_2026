@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" aria-hidden="true">
+  <defs>
+    <clipPath id="flag-circle">
+      <circle cx="60" cy="60" r="54"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#flag-circle)">
+    <rect width="120" height="40" y="0" fill="#FF9933"/>
+    <rect width="120" height="40" y="40" fill="#FFFFFF"/>
+    <rect width="120" height="40" y="80" fill="#138808"/>
+    <circle cx="60" cy="60" r="12" fill="none" stroke="#000080" stroke-width="1.5"/>
+    <circle cx="60" cy="60" r="2" fill="#000080"/>
+    <g stroke="#000080" stroke-width="1.2">
+      <line x1="60" y1="48" x2="60" y2="72"/>
+      <line x1="48" y1="60" x2="72" y2="60"/>
+      <line x1="51.5" y1="51.5" x2="68.5" y2="68.5"/>
+      <line x1="68.5" y1="51.5" x2="51.5" y2="68.5"/>
+      <line x1="54.5" y1="49.5" x2="65.5" y2="70.5"/>
+      <line x1="65.5" y1="49.5" x2="54.5" y2="70.5"/>
+      <line x1="49.5" y1="54.5" x2="70.5" y2="65.5"/>
+      <line x1="70.5" y1="54.5" x2="49.5" y2="65.5"/>
+    </g>
+  </g>
+  <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+</svg>

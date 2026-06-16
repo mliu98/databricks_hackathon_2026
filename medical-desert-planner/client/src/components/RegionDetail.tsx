@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAnalyticsQuery } from '@databricks/appkit-ui/react';
 import { sql } from '@databricks/appkit-ui/js';
 import {
@@ -24,9 +24,6 @@ import { ConfidenceBadge, GapPill, pct } from './StatBits';
 import { SaveScenarioDialog } from './SaveScenarioDialog';
 import type { ScenarioSnapshot } from '../lib/scenarios';
 import { formatFixed, formatNumber, formatOptionalFixed, toBoolean, toFiniteNumber } from '../lib/numbers';
-import { loadStateAqiDataset, stateAqiByKey } from '../lib/aqi';
-import { aqiBoundsFromRows, enrichDistrictCoverageRows } from '../lib/copdRisk';
-import { normalizeStateKey } from '../lib/geo';
 
 interface Props {
   state: string;
@@ -48,27 +45,6 @@ const capLabel = (capability: string) => CAPABILITY_LABELS[capability] ?? capabi
 
 export function RegionDetail({ state, capability, onClose }: Props) {
   const [district, setDistrict] = useState('all');
-  const [stateAqi, setStateAqi] = useState<number | null>(null);
-  const [aqiBounds, setAqiBounds] = useState<ReturnType<typeof aqiBoundsFromRows>>(null);
-
-  useEffect(() => {
-    let active = true;
-    loadStateAqiDataset()
-      .then((dataset) => {
-        if (!active) return;
-        const byKey = stateAqiByKey(dataset.states);
-        setStateAqi(byKey.get(normalizeStateKey(state))?.avgAqi ?? null);
-        setAqiBounds(aqiBoundsFromRows(dataset.states));
-      })
-      .catch(() => {
-        if (!active) return;
-        setStateAqi(null);
-        setAqiBounds(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [state]);
 
   const districtParams = useMemo(
     () => ({
@@ -89,10 +65,8 @@ export function RegionDetail({ state, capability, onClose }: Props) {
   const districts = useAnalyticsQuery('district_coverage', districtParams);
   const facilities = useAnalyticsQuery('facility_list', facilityParams);
 
-  const rows = useMemo(
-    () => enrichDistrictCoverageRows(districts.data ?? [], stateAqi, aqiBounds),
-    [districts.data, stateAqi, aqiBounds]
-  );
+  // Roll the district rows up into a state-level snapshot for saved scenarios.
+  const rows = districts.data ?? [];
   const totalFacilities = rows.reduce((total, row) => total + toFiniteNumber(row.n_facilities), 0);
   const totalTrust = rows.reduce((total, row) => total + toFiniteNumber(row.trust_weighted), 0);
   const riskRows = rows.filter((row) => row.copd_risk_score != null);
@@ -156,8 +130,8 @@ export function RegionDetail({ state, capability, onClose }: Props) {
             <summary className="cursor-pointer font-medium text-foreground">What these district metrics mean</summary>
             <div className="mt-2 grid gap-2 text-muted-foreground md:grid-cols-2">
               <p>
-                <strong className="text-foreground">COPD risk:</strong> planning proxy from PM2.5 AQI, solid-fuel
-                exposure, and adult tobacco use; not diagnosed prevalence.
+                <strong className="text-foreground">COPD risk:</strong> planning proxy from AQI, solid-fuel use,
+                tobacco prevalence, and population-weighted clinic capacity; not diagnosed prevalence.
               </p>
               <p>
                 <strong className="text-foreground">Trust-weighted supply:</strong> matching facilities discounted when
