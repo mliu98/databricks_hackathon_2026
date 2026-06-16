@@ -1,6 +1,14 @@
 bundle:
   name: medical-desert-planner
 
+# Force-upload the production build outputs even though they are gitignored.
+# The app runs the prebuilt `npm run start` (node ./dist/server.js) and serves
+# client/dist, so both must be present in the deployed source.
+sync:
+  include:
+    - dist/**
+    - client/dist/**
+
 variables:
   sql_warehouse_id:
     description: SQL Warehouse ID
@@ -37,7 +45,8 @@ resources:
             permission: CAN_CONNECT_AND_CREATE
         - name: genie-space
           genie_space:
-            id: ${var.genie_space_id}
+            name: genie-space
+            space_id: ${var.genie_space_id}
             permission: CAN_RUN
 
 targets:
