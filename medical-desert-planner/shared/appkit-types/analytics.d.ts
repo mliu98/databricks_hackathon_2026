@@ -106,6 +106,8 @@ declare module "@databricks/appkit-ui/react" {
           /** @sqlType DOUBLE */
           longitude: number;
           /** @sqlType DOUBLE */
+          staff_count: number;
+          /** @sqlType DOUBLE */
           trust_score: number;
           /** @sqlType BOOLEAN */
           has_logo: boolean;
@@ -121,6 +123,41 @@ declare module "@databricks/appkit-ui/react" {
           specialties: string;
           /** @sqlType STRING */
           evidence: string;
+          /** @sqlType BOOLEAN */
+          has_pulmonology: boolean;
+          /** @sqlType BOOLEAN */
+          has_spirometry: boolean;
+          /** @sqlType BOOLEAN */
+          has_oxygen: boolean;
+          /** @sqlType BOOLEAN */
+          has_inhaler_nebulizer: boolean;
+          /** @sqlType BOOLEAN */
+          has_pulmonary_rehab: boolean;
+          /** @sqlType BOOLEAN */
+          has_critical_care: boolean;
+        }>;
+      };
+    facility_map: {
+        name: "facility_map";
+        parameters: {
+          /** STRING - use sql.string() */
+          capability: SQLStringMarker;
+        };
+        result: Array<{
+          /** @sqlType STRING */
+          facility_id: string;
+          /** @sqlType STRING */
+          name: string;
+          /** @sqlType STRING */
+          state: string;
+          /** @sqlType DOUBLE */
+          latitude: number;
+          /** @sqlType DOUBLE */
+          longitude: number;
+          /** @sqlType DOUBLE */
+          staff_count: number;
+          /** @sqlType STRING */
+          specialties: string;
           /** @sqlType BOOLEAN */
           has_pulmonology: boolean;
           /** @sqlType BOOLEAN */

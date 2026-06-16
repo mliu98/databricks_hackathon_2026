@@ -18,7 +18,7 @@ import {
   AlertDescription,
   Label,
 } from '@databricks/appkit-ui/react';
-import { IndiaMap, type StateDatum } from '../components/IndiaMap';
+import { IndiaMap, type FacilityMarker, type StateDatum } from '../components/IndiaMap';
 import { RegionDetail } from '../components/RegionDetail';
 import { StateActionPanel } from '../components/StateActionPanel';
 import { KpiCard, ConfidenceBadge, GapPill, pct } from '../components/StatBits';
@@ -26,6 +26,7 @@ import { loadStateAqiDataset, stateAqiByKey, type StateAqiRow } from '../lib/aqi
 import { COPD_RISK_FORMULA_DESCRIPTION, enrichStateCoverageRows } from '../lib/copdRisk';
 import { loadStatePopulationDataset, statePopulationByKey } from '../lib/population';
 import { visibleAnalyticsError } from '../lib/analytics-query';
+import { facilityCopdDepartments } from '../lib/capabilities';
 import { normalizeStateKey } from '../lib/geo';
 import { formatFixed, formatNumber, formatOptionalFixed, toFiniteNumber } from '../lib/numbers';
 
@@ -107,6 +108,7 @@ export function PlannerPage() {
   const kpis = useAnalyticsQuery('national_kpis', capabilityParams);
   const coverageEnabled = metric !== 'aqi';
   const coverage = useAnalyticsQuery('state_coverage', capabilityParams, { autoStart: coverageEnabled });
+  const facilityMap = useAnalyticsQuery('facility_map', capabilityParams, { autoStart: coverageEnabled });
 
   const rawStateRows = coverage.data ?? EMPTY_ROWS;
   const coverageLoadError = visibleAnalyticsError(coverage.error, {
@@ -206,6 +208,27 @@ export function PlannerPage() {
     [selectedState, stateRows]
   );
 
+  const mapMarkers = useMemo((): FacilityMarker[] => {
+    const rows = facilityMap.data ?? [];
+    const selectedKey = selectedState ? normalizeStateKey(selectedState) : null;
+    return rows
+      .filter((row) => !selectedKey || normalizeStateKey(row.state) === selectedKey)
+      .map((row) => {
+        const staffCount =
+          row.staff_count != null && Number.isFinite(Number(row.staff_count))
+            ? toFiniteNumber(row.staff_count)
+            : null;
+        return {
+          id: row.facility_id,
+          name: row.name,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          staffCount,
+          copdDepartments: facilityCopdDepartments(row),
+        };
+      });
+  }, [facilityMap.data, selectedState]);
+
   const k = kpis.data?.[0];
   const populationWeightedAvgRisk = useMemo(() => {
     let weightedSum = 0;
@@ -264,6 +287,16 @@ export function PlannerPage() {
             : 'Highest solid-fuel use (NFHS)';
   const noDataLabel =
     metric === 'aqi' ? 'No PM2.5 AQI data' : metric === 'solidFuel' ? 'No NFHS fuel data' : 'No facility evidence';
+  const mapViewDescription =
+    metric === 'risk'
+      ? `COPD risk combines PM2.5 AQI, NFHS-5 household solid-fuel exposure, adult tobacco prevalence, and clinic capacity stress weighted by population (${COPD_RISK_FORMULA_DESCRIPTION}). Care capacity is extracted from Unity Catalog facility evidence. This is a planning proxy, not measured COPD prevalence.`
+      : metric === 'coverage'
+        ? `Trust-weighted coverage sums web-evidence trust scores for facilities matching the selected COPD-care capability. Each facility contributes its trust score as a fraction of one full facility (100 trust = 1.0). Darker shading indicates stronger, more believable supply — not verified clinical capacity.`
+        : metric === 'gap'
+          ? `Care gap combines COPD risk with supply scarcity: gap = risk × (1 − min(trust-weighted supply / 20, 1)). Higher values highlight states where need likely outstrips trustworthy COPD-care capacity. This is a planning priority signal, not a measured shortage.`
+          : metric === 'aqi'
+            ? `Average PM2.5 Air Quality Index by state from bundled monitoring readings. Darker shading indicates worse ambient air — a key driver of COPD risk. Select a state to highlight it on the map.`
+            : `Household solid-fuel use from NFHS-5: 100 − clean cooking fuel %. Darker shading indicates more households exposed to indoor biomass smoke, a major COPD risk factor. This is survey-based exposure, not measured emissions.`;
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
@@ -271,7 +304,7 @@ export function PlannerPage() {
         <div className="space-y-1">
           <h2 className="text-2xl font-bold tracking-tight text-foreground">COPD Care Planner</h2>
           <p className="text-sm text-muted-foreground">
-            Where are the highest-risk gaps in care — and how confident are we they are real?
+            Where are the highest-risk gaps in care — and what intervention make most sense to close them?
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
@@ -338,11 +371,7 @@ export function PlannerPage() {
       </div>
 
       <Alert>
-        <AlertDescription>
-          COPD risk combines PM2.5 AQI, NFHS-5 household solid-fuel exposure, adult tobacco prevalence, and clinic
-          capacity stress weighted by population ({COPD_RISK_FORMULA_DESCRIPTION}). Care capacity is extracted from
-          Unity Catalog facility evidence. This is a planning proxy, not measured COPD prevalence.
-        </AlertDescription>
+        <AlertDescription>{mapViewDescription}</AlertDescription>
       </Alert>
 
       {aqiError && metric === 'aqi' && (
@@ -453,6 +482,7 @@ export function PlannerPage() {
                 selectedState={selectedState}
                 onSelect={(s) => setSelectedState(s)}
                 noDataLabel={noDataLabel}
+                markers={metric === 'aqi' ? [] : mapMarkers}
               />
             )}
             {selectedState && !mapLoading && metric !== 'aqi' && (

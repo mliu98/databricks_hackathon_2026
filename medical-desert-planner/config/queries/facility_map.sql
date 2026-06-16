@@ -1,7 +1,5 @@
--- @param state STRING
--- @param district STRING
 -- @param capability STRING
--- COPD-relevant facility records and the text evidence behind their inclusion.
+-- Geocoded COPD-care facilities for map markers (name, location, staff count).
 WITH pin_geo AS (
   SELECT pincode, statename, district FROM (
     SELECT pincode, statename, district,
@@ -12,9 +10,13 @@ WITH pin_geo AS (
 ),
 facilities_scored AS (
   SELECT
-    f.*,
+    f.unique_id,
+    f.name,
+    f.latitude,
+    f.longitude,
+    f.specialties,
     g.statename,
-    g.district,
+    try_cast(f.numberDoctors AS DOUBLE) AS staff_count,
     lower(concat_ws(
       ' ',
       COALESCE(f.description, ''),
@@ -23,21 +25,6 @@ facilities_scored AS (
       COALESCE(f.capability, ''),
       COALESCE(f.specialties, '')
     )) AS evidence_text,
-    array_join(
-      slice(
-        filter(
-          concat(
-            COALESCE(from_json(f.procedure, 'array<string>'), CAST(array() AS array<string>)),
-            COALESCE(from_json(f.equipment, 'array<string>'), CAST(array() AS array<string>)),
-            COALESCE(from_json(f.capability, 'array<string>'), CAST(array() AS array<string>))
-          ),
-          item -> lower(item) RLIKE 'copd|chronic obstructive|pulmon|respirat|chest medicine|spirom|pulmonary function|lung function|\\bpft\\b|oxygen|concentrator|ventilat|nebul|inhaler|bronchodilator|pulmonary rehab|respiratory rehab'
-        ),
-        1,
-        3
-      ),
-      ' • '
-    ) AS evidence,
     ROUND(100 * (
         0.22 * (CASE WHEN f.custom_logo_presence = 'true' THEN 1 ELSE 0 END)
       + 0.22 * (CASE WHEN f.affiliated_staff_presence = 'true' THEN 1 ELSE 0 END)
@@ -47,30 +34,17 @@ facilities_scored AS (
     ), 0) AS trust_score
   FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.facilities f
   JOIN pin_geo g ON try_cast(f.address_zipOrPostcode AS BIGINT) = g.pincode
-  WHERE UPPER(g.statename) = UPPER(:state)
-    AND (:district = 'all' OR UPPER(g.district) = UPPER(:district))
+  WHERE f.latitude BETWEEN 6 AND 37
+    AND f.longitude BETWEEN 68 AND 98
 )
 SELECT
   unique_id AS facility_id,
   name,
-  INITCAP(address_city) AS city,
-  INITCAP(district) AS district,
-  address_zipOrPostcode AS pin,
+  statename AS state,
   latitude,
   longitude,
-  CASE
-    WHEN try_cast(numberDoctors AS DOUBLE) IS NOT NULL AND try_cast(numberDoctors AS DOUBLE) >= 0
-    THEN try_cast(numberDoctors AS DOUBLE)
-    ELSE NULL
-  END AS staff_count,
-  trust_score,
-  (custom_logo_presence = 'true') AS has_logo,
-  (affiliated_staff_presence = 'true') AS has_staff,
-  COALESCE(try_cast(distinct_social_media_presence_count AS INT), 0) AS social_count,
-  (officialWebsite IS NOT NULL AND officialWebsite <> '') AS has_website,
-  (try_cast(recency_of_page_update AS DATE) >= DATE'2025-01-01') AS recently_updated,
+  CASE WHEN staff_count IS NOT NULL AND staff_count >= 0 THEN staff_count ELSE NULL END AS staff_count,
   array_join(slice(array_distinct(from_json(specialties, 'array<string>')), 1, 6), ', ') AS specialties,
-  evidence,
   evidence_text RLIKE 'copd|chronic obstructive|pulmon|respirat|chest medicine' AS has_pulmonology,
   evidence_text RLIKE 'spirom|pulmonary function|lung function|\\bpft\\b' AS has_spirometry,
   evidence_text RLIKE 'oxygen therapy|oxygen concentrator|medical oxygen|ventilat' AS has_oxygen,
@@ -87,4 +61,4 @@ WHERE
   OR (:capability = 'pulmonaryRehab' AND evidence_text RLIKE 'pulmonary rehab|respiratory rehab')
   OR (:capability = 'criticalCare' AND evidence_text RLIKE 'criticalcaremedicine|critical care|intensive care|\\bicu\\b|ventilat')
 ORDER BY trust_score DESC, name
-LIMIT 200;
+LIMIT 500;
