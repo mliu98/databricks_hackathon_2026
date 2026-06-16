@@ -11,7 +11,7 @@ let pageErrors: string[] = [];
 let failedRequests: string[] = [];
 
 test('smoke test - landing page loads and navigates', async ({ page }) => {
-  await page.goto('/welcome');
+  await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'COPD Care Planner', level: 1 })).toBeVisible();
 
@@ -20,9 +20,8 @@ test('smoke test - landing page loads and navigates', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'COPD Care Planner', level: 2 })).toBeVisible();
 });
 
-test('smoke test - home redirects to planner risk map', async ({ page }) => {
-  await page.goto('/');
-  await expect(page).toHaveURL(/\/planner$/);
+test('smoke test - planner risk map default toggle', async ({ page }) => {
+  await page.goto('/planner');
   await expect(page.getByRole('radio', { name: 'Risk', exact: true })).toHaveAttribute('data-state', 'on');
 });
 

@@ -39,8 +39,8 @@ function Layout() {
 }
 
 const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/planner" replace />, errorElement: <RouteErrorPage /> },
-  { path: '/welcome', element: <LandingPage />, errorElement: <RouteErrorPage /> },
+  { path: '/', element: <LandingPage />, errorElement: <RouteErrorPage /> },
+  { path: '/welcome', element: <Navigate to="/" replace />, errorElement: <RouteErrorPage /> },
   {
     element: <Layout />,
     errorElement: <RouteErrorPage />,
